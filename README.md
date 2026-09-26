@@ -181,7 +181,7 @@ Analyzes a chess position given a FEN string.
 ```
 
 ### `POST /api/ai-commentary`
-Generates natural language grandmaster commentary using Google Gemini 2.0 Flash.
+Generates natural language grandmaster commentary using Google Gemini 3.8 Flash.
 
 **Request Payload:**
 ```json
@@ -200,7 +200,7 @@ Generates natural language grandmaster commentary using Google Gemini 2.0 Flash.
 {
   "success": true,
   "commentary": "White strikes in the center with 3. d4, opening lines for the bishops and challenging Black's central pawn immediately. Black must decide how to resolve the tension, while White aims for rapid piece activation and king safety.",
-  "model": "gemini-2.0-flash"
+  "model": "gemini-3.8-flash"
 }
 ```
 

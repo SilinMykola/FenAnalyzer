@@ -387,7 +387,7 @@ class AiCommentaryRequest(BaseModel):
 class AiCommentaryResponse(BaseModel):
     success: bool
     commentary: str
-    model: str = "gemini-2.0-flash"
+    model: str = "gemini-3.8-flash"
     error: Optional[str] = None
 
 
@@ -415,7 +415,8 @@ Instructions:
 3. Mention what plan {payload.turn.capitalize()} should follow next.
 4. Keep the tone inspiring and instructive like a grandmaster analyzing a post-game review."""
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key.strip()}"
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key.strip()}"
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -453,7 +454,7 @@ Instructions:
             return AiCommentaryResponse(
                 success=True,
                 commentary=text,
-                model="gemini-2.0-flash",
+                model=model_name,
             )
     except Exception as e:
         return AiCommentaryResponse(
