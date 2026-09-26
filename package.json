@@ -1,0 +1,10 @@
+{
+  "name": "fen-analise-root",
+  "private": true,
+  "scripts": {
+    "dev:backend": "python3 -m uvicorn backend.main:app --reload --port 8000",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "./start.sh",
+    "install:frontend": "cd frontend && npm install"
+  }
+}

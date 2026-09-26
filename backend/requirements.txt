@@ -1,0 +1,11 @@
+# Python Web & Engine Dependencies
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+python-chess>=1.999
+pydantic>=2.6.0
+
+# NOTE: Stockfish is a standalone C++ chess engine binary.
+# Install it on your operating system:
+# - macOS:   brew install stockfish
+# - Ubuntu:  sudo apt-get install stockfish
+# - Windows: Download from https://stockfishchess.org/download/
