@@ -31,3 +31,36 @@ export async function checkBackendHealth() {
     return { ok: false, error: err.message };
   }
 }
+
+export async function getAiCommentary({
+  fen,
+  turn,
+  score,
+  best_move_san,
+  explanation,
+  verbal_verdict,
+  custom_api_key,
+}) {
+  const response = await fetch('/api/ai-commentary', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      fen,
+      turn,
+      score,
+      best_move_san,
+      explanation,
+      verbal_verdict,
+      custom_api_key: custom_api_key || undefined,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Server error: ${response.status}`);
+  }
+
+  return response.json();
+}

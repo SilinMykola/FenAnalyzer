@@ -19,13 +19,15 @@ A modern, high-performance web application for analyzing chess positions and ful
 
 * ♟️ **Interactive Drag-and-Drop Board**: Move pieces directly on the board with client-side legal move validation (`chess.js`) and audio feedback via Web Audio API.
 * ⚡ **Instant Stockfish Engine Analysis**: Every move triggers automatic server-side Stockfish evaluation with configurable search depth (8–24) and multi-line analysis (MultiPV 1–5).
+* 🤖 **Grandmaster AI Commentary (Google Gemini)**: One-click natural language grandmaster coaching explaining why a move is best, what threats exist, and what strategic plan to follow.
 * 📊 **Stockfish WDL (Win/Draw/Loss) Model**: Visual win, draw, and loss probability distribution calculated directly from engine evaluation.
 * 🧠 **Tactical Explanations & Verbal Verdicts**:
   * Human-readable position assessment (*"Clear advantage for White"*, *"Decisive winning advantage"*, *"Forced mate in 3"*).
   * Tactical breakdown of the best engine move (*"Knight on f3 captures Pawn on e5 & delivers check"*).
 * 📜 **PGN Game Explorer**:
-  * Import and parse PGN games from **Chess.com** or **Lichess**.
+  * Import and parse PGN games from **Chess.com** or **Lichess** (including thematic tournaments with custom starting FENs).
   * Step through moves with interactive buttons or **keyboard arrow keys** (`←` / `→`).
+  * Convenient **Clear / Reset Game** controls to instantly clear and import new games.
   * Real-time engine evaluation and best-move arrows for every turn in the game.
 * ⚖️ **Material Balance Counter**: Real-time piece material tracker with point differentials.
 * 🔄 **Smart Board Controls**: Board flipping, preset historic games (e.g. Kasparov's Immortal, Fischer vs. Spassky), and a **"Play Best Move"** one-click runner.
@@ -40,18 +42,18 @@ A modern, high-performance web application for analyzing chess positions and ful
                        │    (react-chessboard + chess.js)        │
                        └────────────────────┬────────────────────┘
                                             │ HTTP / JSON
-                                            │ (POST /api/analyze)
+                                            │ (POST /api/analyze, /api/ai-commentary)
                                             ▼
                        ┌─────────────────────────────────────────┐
                        │           FastAPI Python API            │
                        │        (Pydantic validation)            │
-                       └────────────────────┬────────────────────┘
-                                            │ UCI Protocol (popen)
-                                            ▼
-                       ┌─────────────────────────────────────────┐
-                       │       Stockfish Engine (C++ Binary)     │
-                       │     Multithreaded evaluation & WDL      │
-                       └─────────────────────────────────────────┘
+                       └───────────┬─────────────────┬───────────┘
+                                   │ UCI             │ HTTPS / REST
+                                   ▼                 ▼
+             ┌───────────────────────────────┐  ┌─────────────────────────┐
+             │ Stockfish Engine (C++ Binary) │  │ Google Gemini AI API    │
+             │ Multithreaded evaluation & WDL│  │ Grandmaster commentary  │
+             └───────────────────────────────┘  └─────────────────────────┘
 ```
 
 ---
@@ -102,7 +104,15 @@ npm install
 cd ..
 ```
 
-### 3. Launch the Application
+### 3. (Optional) Configure Gemini AI Grandmaster
+To enable natural language Grandmaster coaching insights, get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey) and create a `backend/.env` file:
+```bash
+cp backend/.env.example backend/.env
+# Set GEMINI_API_KEY=AIzaSy...
+```
+*(You can also enter your key directly inside the web UI via the **Set API Key** button).*
+
+### 4. Launch the Application
 Run the startup script:
 ```bash
 ./start.sh
@@ -170,8 +180,32 @@ Analyzes a chess position given a FEN string.
 }
 ```
 
+### `POST /api/ai-commentary`
+Generates natural language grandmaster commentary using Google Gemini 2.0 Flash.
+
+**Request Payload:**
+```json
+{
+  "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+  "turn": "white",
+  "score": "+0.37",
+  "best_move_san": "d4",
+  "explanation": "Pawn moves to d4",
+  "verbal_verdict": "Even position (balanced game)"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "commentary": "White strikes in the center with 3. d4, opening lines for the bishops and challenging Black's central pawn immediately. Black must decide how to resolve the tension, while White aims for rapid piece activation and king safety.",
+  "model": "gemini-2.0-flash"
+}
+```
+
 ### `GET /api/health`
-Checks backend engine health and Stockfish binary availability.
+Checks backend engine health, Stockfish binary availability, and Gemini API key status.
 
 ---
 

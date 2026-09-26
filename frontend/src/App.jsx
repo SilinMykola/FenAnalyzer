@@ -4,7 +4,7 @@ import FenInput from './components/FenInput';
 import BoardView from './components/BoardView';
 import AnalysisPanel from './components/AnalysisPanel';
 import PgnViewer from './components/PgnViewer';
-import { analyzeFen, checkBackendHealth } from './api/chessApi';
+import { analyzeFen, checkBackendHealth, getAiCommentary } from './api/chessApi';
 import { playMoveSound } from './utils/sound';
 
 const DEFAULT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -32,6 +32,14 @@ export default function App() {
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const pgnFensRef = useRef([]);
 
+  // Gemini AI Commentary state
+  const [aiCommentary, setAiCommentary] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [customApiKey, setCustomApiKey] = useState(() => {
+    return localStorage.getItem('gemini_api_key') || '';
+  });
+
   // Check backend health on initial load
   useEffect(() => {
     checkBackendHealth().then((res) => {
@@ -46,6 +54,9 @@ export default function App() {
 
       setLoading(true);
       setError(null);
+      // Clear previous position's AI commentary
+      setAiCommentary(null);
+      setAiError(null);
 
       try {
         const data = await analyzeFen(fenToAnalyze, targetDepth, targetMultipv);
@@ -74,6 +85,22 @@ export default function App() {
     } catch (e) {
       // Allow partial typing in input
     }
+  };
+
+  // Reset to Starting Position (Clears board, PGN, and inputs)
+  const handleResetToStartingPosition = () => {
+    gameRef.current.load(DEFAULT_FEN);
+    setFen(DEFAULT_FEN);
+    setPgnText('');
+    setPgnMoves([]);
+    setPgnHeaders({});
+    setCurrentMoveIndex(-1);
+    pgnFensRef.current = [DEFAULT_FEN];
+    setAiCommentary(null);
+    setAiError(null);
+    setError(null);
+    playMoveSound(false);
+    triggerAnalysis(DEFAULT_FEN);
   };
 
   // Handler for making a move via Drag & Drop on the board
@@ -178,6 +205,46 @@ export default function App() {
     }
   };
 
+  // Ask Grandmaster AI Commentary handler
+  const handleAskGrandmaster = async () => {
+    if (!analysis || !analysis.lines || analysis.lines.length === 0) return;
+
+    const topChoice = analysis.lines[0];
+    setAiLoading(true);
+    setAiError(null);
+
+    try {
+      const res = await getAiCommentary({
+        fen,
+        turn: analysis.turn,
+        score: topChoice.score,
+        best_move_san: topChoice.move_san,
+        explanation: topChoice.explanation,
+        verbal_verdict: analysis.verbal_verdict,
+        custom_api_key: customApiKey,
+      });
+
+      if (!res.success) {
+        setAiError(res.error || 'Failed to generate commentary');
+      } else {
+        setAiCommentary(res.commentary);
+      }
+    } catch (err) {
+      setAiError(err.message || 'Error communicating with AI endpoint');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleSaveCustomApiKey = (key) => {
+    setCustomApiKey(key);
+    if (key) {
+      localStorage.setItem('gemini_api_key', key);
+    } else {
+      localStorage.removeItem('gemini_api_key');
+    }
+  };
+
   // Keyboard navigation for PGN stepping
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -209,7 +276,7 @@ export default function App() {
           <div>
             <h1>FEN & PGN Chess Analyzer</h1>
             <p className="subtitle">
-              Interactive Stockfish engine analysis, WDL probabilities & tactics
+              Interactive Stockfish engine analysis, WDL probabilities & Gemini AI coach
             </p>
           </div>
         </div>
@@ -232,6 +299,16 @@ export default function App() {
               PGN Game Explorer
             </button>
           </div>
+
+          {/* Reset / New Game button */}
+          <button
+            type="button"
+            className="btn-reset-header"
+            onClick={handleResetToStartingPosition}
+            title="Reset board and clear inputs to initial position"
+          >
+            🔄 Reset Board
+          </button>
 
           {/* Backend Status indicator */}
           <div className="backend-indicator">
@@ -275,6 +352,7 @@ export default function App() {
               pgnText={pgnText}
               onPgnTextChange={setPgnText}
               onLoadPgn={handleLoadPgn}
+              onResetGame={handleResetToStartingPosition}
               moves={pgnMoves}
               currentMoveIndex={currentMoveIndex}
               onSelectMove={handleSelectPgnMove}
@@ -314,7 +392,16 @@ export default function App() {
           </div>
 
           <div className="analysis-column">
-            <AnalysisPanel analysis={analysis} loading={loading} />
+            <AnalysisPanel
+              analysis={analysis}
+              loading={loading}
+              onAskGrandmaster={handleAskGrandmaster}
+              aiCommentary={aiCommentary}
+              aiLoading={aiLoading}
+              aiError={aiError}
+              customApiKey={customApiKey}
+              onSaveCustomApiKey={handleSaveCustomApiKey}
+            />
           </div>
         </div>
       </main>

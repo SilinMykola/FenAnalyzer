@@ -14,6 +14,7 @@ export default function PgnViewer({
   pgnText,
   onPgnTextChange,
   onLoadPgn,
+  onResetGame,
   moves,
   currentMoveIndex,
   onSelectMove,
@@ -30,7 +31,6 @@ export default function PgnViewer({
   let currentRow = null;
 
   moves.forEach((m, idx) => {
-    // Extract fullmove number from the FEN before the move if present
     const fullMoveNumber = parseInt(m.before?.split(' ')[5], 10) || Math.floor(idx / 2) + 1;
     if (m.color === 'w' || !currentRow || currentRow.number !== fullMoveNumber) {
       if (currentRow) movePairs.push(currentRow);
@@ -63,6 +63,19 @@ export default function PgnViewer({
     setShowInput(false);
   };
 
+  const handlePasteClipboard = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          onPgnTextChange(text);
+        }
+      }
+    } catch (err) {
+      // Browser permissions denied
+    }
+  };
+
   return (
     <div className="card pgn-card">
       <div className="pgn-header">
@@ -74,34 +87,87 @@ export default function PgnViewer({
             </span>
           )}
         </div>
-        <button
-          type="button"
-          className="btn-secondary btn-sm"
-          onClick={() => setShowInput(!showInput)}
-        >
-          {showInput ? 'Hide PGN Input' : '📥 Import / Paste PGN'}
-        </button>
+        <div className="pgn-header-actions">
+          {moves.length > 0 && onResetGame && (
+            <button
+              type="button"
+              className="btn-reset-game"
+              onClick={() => {
+                onPgnTextChange('');
+                onResetGame();
+              }}
+              title="Clear loaded game and reset board to starting position"
+            >
+              🗑️ Clear Game
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={() => setShowInput(!showInput)}
+          >
+            {showInput ? 'Hide PGN Input' : '📥 Import / Paste PGN'}
+          </button>
+        </div>
       </div>
 
       {showInput && (
         <form onSubmit={handleImport} className="pgn-input-form">
-          <textarea
-            className="pgn-textarea"
-            rows="5"
-            value={pgnText}
-            onChange={(e) => onPgnTextChange(e.target.value)}
-            placeholder="Paste your PGN game notation here (e.g. from Chess.com or Lichess)..."
-          />
+          <div className="pgn-textarea-wrapper">
+            <textarea
+              className="pgn-textarea"
+              rows="6"
+              value={pgnText}
+              onChange={(e) => onPgnTextChange(e.target.value)}
+              placeholder="Paste your PGN game notation here (e.g. from Chess.com or Lichess)..."
+              autoFocus
+            />
+            {pgnText && (
+              <button
+                type="button"
+                className="btn-clear-inside"
+                onClick={() => onPgnTextChange('')}
+                title="Clear text"
+              >
+                ✕ Clear
+              </button>
+            )}
+          </div>
+
           <div className="pgn-form-actions">
+            <div className="pgn-left-actions">
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={handlePasteClipboard}
+                title="Paste text from clipboard"
+              >
+                📋 Paste from Clipboard
+              </button>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={() => onPgnTextChange(SAMPLE_PGN)}
+              >
+                Load Fischer vs Spassky
+              </button>
+              {pgnText && (
+                <button
+                  type="button"
+                  className="preset-btn btn-danger-text"
+                  onClick={() => onPgnTextChange('')}
+                >
+                  Clear Text
+                </button>
+              )}
+            </div>
+
             <button
-              type="button"
-              className="preset-btn"
-              onClick={() => onPgnTextChange(SAMPLE_PGN)}
+              type="submit"
+              className="btn btn-primary btn-sm"
+              disabled={!pgnText.trim()}
             >
-              Load Fischer vs Spassky (Game 6)
-            </button>
-            <button type="submit" className="btn btn-primary btn-sm">
-              Load & Parse Game
+              Parse & Load Game
             </button>
           </div>
         </form>
@@ -171,13 +237,17 @@ export default function PgnViewer({
             {movePairs.map((pair) => (
               <div key={pair.number} className="move-pair-row">
                 <span className="move-number">{pair.number}.</span>
-                <button
-                  type="button"
-                  className={`move-btn ${currentMoveIndex === pair.whiteIndex ? 'active' : ''}`}
-                  onClick={() => onSelectMove(pair.whiteIndex)}
-                >
-                  {pair.white.san}
-                </button>
+                {pair.white ? (
+                  <button
+                    type="button"
+                    className={`move-btn ${currentMoveIndex === pair.whiteIndex ? 'active' : ''}`}
+                    onClick={() => onSelectMove(pair.whiteIndex)}
+                  >
+                    {pair.white.san}
+                  </button>
+                ) : (
+                  <span className="move-placeholder">...</span>
+                )}
                 {pair.black && (
                   <button
                     type="button"

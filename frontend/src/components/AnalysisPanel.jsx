@@ -1,6 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 
-export default function AnalysisPanel({ analysis, loading }) {
+export default function AnalysisPanel({
+  analysis,
+  loading,
+  onAskGrandmaster,
+  aiCommentary,
+  aiLoading,
+  aiError,
+  customApiKey,
+  onSaveCustomApiKey,
+}) {
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [keyDraft, setKeyDraft] = useState('');
+
   if (loading) {
     return (
       <div className="card analysis-card placeholder-card">
@@ -36,6 +48,14 @@ export default function AnalysisPanel({ analysis, loading }) {
   } = analysis;
 
   const bestLine = lines && lines.length > 0 ? lines[0] : null;
+
+  const handleSaveKey = (e) => {
+    e.preventDefault();
+    if (onSaveCustomApiKey) {
+      onSaveCustomApiKey(keyDraft.trim());
+      setShowKeyInput(false);
+    }
+  };
 
   return (
     <div className="card analysis-card">
@@ -81,6 +101,110 @@ export default function AnalysisPanel({ analysis, loading }) {
           </div>
         </div>
       )}
+
+      {/* Ask Grandmaster (Gemini AI) Section */}
+      <div className="ai-grandmaster-section">
+        <div className="ai-section-header">
+          <span className="ai-section-title">🎓 Grandmaster AI Commentary</span>
+          <div className="ai-header-controls">
+            <button
+              type="button"
+              className="btn-link-key"
+              onClick={() => setShowKeyInput(!showKeyInput)}
+              title="Configure Gemini API Key"
+            >
+              ⚙️ {customApiKey ? 'API Key Set' : 'Set API Key'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ai-ask"
+              onClick={onAskGrandmaster}
+              disabled={aiLoading || !bestLine}
+              title="Generate natural language explanation from Google Gemini"
+            >
+              {aiLoading ? (
+                <>
+                  <span className="spinner ai-spinner"></span> Thinking...
+                </>
+              ) : (
+                '🤖 Ask Grandmaster'
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Inline API Key settings toggle */}
+        {showKeyInput && (
+          <form onSubmit={handleSaveKey} className="key-input-form">
+            <label htmlFor="gemini-key" className="key-input-label">
+              Gemini API Key (saved in browser):
+            </label>
+            <div className="key-input-row">
+              <input
+                id="gemini-key"
+                type="password"
+                className="text-input text-input-sm"
+                value={keyDraft}
+                onChange={(e) => setKeyDraft(e.target.value)}
+                placeholder={customApiKey ? '••••••••••••••••' : 'AIzaSy...'}
+              />
+              <button type="submit" className="btn btn-primary btn-sm">
+                Save
+              </button>
+              {customApiKey && (
+                <button
+                  type="button"
+                  className="preset-btn btn-danger-text"
+                  onClick={() => {
+                    onSaveCustomApiKey('');
+                    setKeyDraft('');
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <p className="key-help-text">
+              Free key available in 30 seconds at{' '}
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="accent-link"
+              >
+                Google AI Studio ↗
+              </a>{' '}
+              (or set `GEMINI_API_KEY` in `backend/.env`).
+            </p>
+          </form>
+        )}
+
+        {/* AI Error notice if key is missing or request failed */}
+        {aiError && (
+          <div className="ai-error-box">
+            <span>⚠️ {aiError}</span>
+            {!customApiKey && (
+              <button
+                type="button"
+                className="btn-accent-sm mt-1"
+                onClick={() => setShowKeyInput(true)}
+              >
+                Enter API Key
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* AI Commentary result card */}
+        {aiCommentary && (
+          <div className="ai-commentary-card">
+            <div className="ai-commentary-badge">
+              <span>FIDE Grandmaster Coaching:</span>
+            </div>
+            <p className="ai-commentary-text">"{aiCommentary}"</p>
+          </div>
+        )}
+      </div>
 
       {/* Win / Draw / Loss Probability Bar */}
       {wdl && (
