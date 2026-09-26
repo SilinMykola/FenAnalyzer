@@ -7,7 +7,8 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black)
 ![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)
-![Stockfish](https://img.shields.io/badge/Engine-Stockfish-16%2B-black)
+![Stockfish](https://img.shields.io/badge/Engine-Stockfish%2016%2B-2b2b2b?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHRleHQgeT0iMjQiIGZvbnQtc2l6ZT0iMjQiPuKZn++4jzwvdGV4dD48L3N2Zz4=&logoColor=white)
+![Gemini](https://img.shields.io/badge/AI-Gemini%203.8%20Flash-4285F4?logo=google&logoColor=white)
 
 A modern, high-performance web application for analyzing chess positions and full games using the **Stockfish** engine. Built with **React 18**, **FastAPI**, **python-chess**, and **react-chessboard**.
 
