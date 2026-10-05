@@ -95,7 +95,10 @@ and get natural language grandmaster coaching — all in a modern dark-mode UI.
 |---|---|---|
 | Node.js + npm | v18+ | [nodejs.org](https://nodejs.org) |
 | Python | v3.10+ | [python.org](https://python.org) |
+| uv *(Python pkg manager)* | latest | `brew install uv` or [astral.sh/uv](https://astral.sh/uv) |
 | Stockfish | 16+ | See below |
+
+> **`uv`** is a fast Rust-based Python package manager — a drop-in replacement for `pip`, 10–100× faster. `start.sh` will install it automatically if it's missing.
 
 **Install Stockfish:**
 
@@ -122,14 +125,13 @@ git clone https://github.com/SilinMykola/FenAnalyzer.git
 cd FenAnalyzer
 ```
 
-### 2. Install dependencies
-
+### 2. Install Stockfish
 ```bash
-# Python backend
-pip install -r backend/requirements.txt
+# macOS
+brew install stockfish
 
-# React frontend
-cd frontend && npm install && cd ..
+# Ubuntu / Debian
+sudo apt-get install -y stockfish
 ```
 
 ### 3. Configure Gemini AI (optional)
@@ -137,7 +139,7 @@ Get a free API key at [Google AI Studio](https://aistudio.google.com/app/apikey)
 
 ```bash
 cp backend/.env.example backend/.env
-# Edit backend/.env and set:
+# Edit backend/.env:
 # GEMINI_API_KEY=AIzaSy...
 ```
 
@@ -145,11 +147,30 @@ cp backend/.env.example backend/.env
 
 ### 4. Start the application
 
-```bash
-# One command — launches both backend and frontend
-./start.sh
+#### ⚡ Option A — One command (recommended)
+`start.sh` automatically checks and installs all missing dependencies before launching:
 
-# Or via npm
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+On first run it will:
+- Install **uv** (Python package manager) if missing — via Homebrew or the official installer
+- Install Python packages (`fastapi`, `uvicorn`, `python-chess`, `httpx`, etc.) with `uv`
+- Install Node packages (`react`, `vite`, `chess.js`, etc.) if `node_modules` is missing
+- Start both backend and frontend
+
+#### 🔧 Option B — Manual install
+```bash
+# Python dependencies (uv — fast Rust-based pip replacement)
+brew install uv          # or: curl -LsSf https://astral.sh/uv/install.sh | sh
+uv pip install -r backend/requirements.txt
+
+# Node dependencies
+cd frontend && npm install && cd ..
+
+# Launch
 npm run dev
 ```
 
