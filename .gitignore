@@ -22,6 +22,9 @@ ENV/
 *.swp
 *.swo
 
+# Antigravity IDE
+.agy/
+
 # Logs
 *.log
 npm-debug.log*
