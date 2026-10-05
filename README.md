@@ -1,4 +1,4 @@
-# FEN & PGN Chess Analyzer
+# ♟️ FenAnalyzer
 
 <div align="center">
 
@@ -10,76 +10,107 @@
 ![Stockfish](https://img.shields.io/badge/Engine-Stockfish%2016%2B-2b2b2b?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHRleHQgeT0iMjQiIGZvbnQtc2l6ZT0iMjQiPuKZn++4jzwvdGV4dD48L3N2Zz4=&logoColor=white)
 ![Gemini](https://img.shields.io/badge/AI-Gemini%203.8%20Flash-4285F4?logo=google&logoColor=white)
 
-A modern, high-performance web application for analyzing chess positions and full games using the **Stockfish** engine. Built with **React 18**, **FastAPI**, **python-chess**, and **react-chessboard**.
+**A full-stack chess analysis web app powered by Stockfish 16 and Google Gemini AI.**  
+Load any FEN or PGN, explore engine variations interactively, build custom positions,
+and get natural language grandmaster coaching — all in a modern dark-mode UI.
 
 </div>
 
 ---
 
-## 🌟 Key Features
+## 🌟 Features
 
-* ♟️ **Interactive Drag-and-Drop Board**: Move pieces directly on the board with client-side legal move validation (`chess.js`) and audio feedback via Web Audio API.
-* ⚡ **Instant Stockfish Engine Analysis**: Every move triggers automatic server-side Stockfish evaluation with configurable search depth (8–24) and multi-line analysis (MultiPV 1–5).
-* 🤖 **Grandmaster AI Commentary (Google Gemini)**: One-click natural language grandmaster coaching explaining why a move is best, what threats exist, and what strategic plan to follow.
-* 📊 **Stockfish WDL (Win/Draw/Loss) Model**: Visual win, draw, and loss probability distribution calculated directly from engine evaluation.
-* 🧠 **Tactical Explanations & Verbal Verdicts**:
-  * Human-readable position assessment (*"Clear advantage for White"*, *"Decisive winning advantage"*, *"Forced mate in 3"*).
-  * Tactical breakdown of the best engine move (*"Knight on f3 captures Pawn on e5 & delivers check"*).
-* 📜 **PGN Game Explorer**:
-  * Import and parse PGN games from **Chess.com** or **Lichess** (including thematic tournaments with custom starting FENs).
-  * Step through moves with interactive buttons or **keyboard arrow keys** (`←` / `→`).
-  * Convenient **Clear / Reset Game** controls to instantly clear and import new games.
-  * Real-time engine evaluation and best-move arrows for every turn in the game.
-* ⚖️ **Material Balance Counter**: Real-time piece material tracker with point differentials.
-* 🔄 **Smart Board Controls**: Board flipping, preset historic games (e.g. Kasparov's Immortal, Fischer vs. Spassky), and a **"Play Best Move"** one-click runner.
+### 🔍 Analysis Engine
+- **Instant Stockfish Evaluation** — every move triggers server-side UCI engine analysis with configurable depth (1–30) and MultiPV lines (1–5)
+- **Clickable Engine Variations** — each move in the top engine lines is an interactive badge; click any move to preview that position on the board instantly, then return to the original with one click
+- **WDL Probability Bar** — visual Win / Draw / Loss percentage breakdown from the Stockfish internal model
+- **Material Balance Counter** — real-time piece count with point differentials (e.g. `+2 White`)
+- **Verbal Verdicts** — human-readable position assessments: *"Decisive advantage for White"*, *"Forced mate in 3"*, *"Even position"*
+- **Tactical Explanations** — plain-English move descriptions: *"Knight captures Pawn on e5 & delivers check"*
+
+### 🤖 Grandmaster AI Commentary (Google Gemini)
+- One-click **natural language coaching** from Google Gemini 3.8 Flash
+- Explains *why* the best engine move is strongest, outlines the strategic plan, and highlights key threats
+- **Retry logic** with exponential backoff for 503/429 rate-limit errors
+- API key configurable via `backend/.env` or directly in the UI — no backend restart needed
+
+### 📋 PGN Game Explorer
+- Import and parse games from **Chess.com** or **Lichess** (including custom starting FEN tournaments)
+- Navigate moves with **Previous / Next buttons** or **keyboard arrow keys** (`←` / `→`)
+- Real-time Stockfish evaluation and best-move arrows on every step
+- Clear / Reset controls to instantly load a new game
+
+### 🧩 Board Editor
+- Dedicated **Board Editor tab** for building any custom chess position from scratch
+- **Piece palette** — click to select White ♔♕♖♗♘♙ or Black ♚♛♜♝♞♟ pieces, then place them on any square
+- **Eraser tool** — click squares to remove individual pieces
+- **Drag & drop** — rearrange existing pieces freely on the board
+- **Castling rights toggles** — set White/Black kingside and queenside castling availability
+- **Turn selector** — choose White or Black to move
+- **Live FEN output** — generated FEN updates in real-time as you edit; copy to clipboard with one click
+- **Position validation** — warns if kings are missing; "Analyze" button disabled until position is legal
+- **Send to Stockfish** — instantly pass the custom position to the engine with one button
+
+### 🎮 Interactive Board (FEN Mode)
+- **Drag-and-drop** piece movement with client-side legal move validation (`chess.js`)
+- **Audio feedback** — synthesized move and capture sounds via Web Audio API (no external files)
+- **Best-move arrow** — visual arrow overlay highlighting the engine's top recommendation
+- **Board flip** — toggle perspective between White and Black
+- **FEN paste / clear** — load any position directly from a FEN string
+- **Preset positions** — one-click historic games (Kasparov's Immortal, Fischer vs. Spassky, and more)
+- **Play Best Move** — apply the engine's top recommendation with a single button
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-                       ┌─────────────────────────────────────────┐
-                       │        React 18 + Vite Frontend         │
-                       │    (react-chessboard + chess.js)        │
-                       └────────────────────┬────────────────────┘
-                                            │ HTTP / JSON
-                                            │ (POST /api/analyze, /api/ai-commentary)
-                                            ▼
-                       ┌─────────────────────────────────────────┐
-                       │           FastAPI Python API            │
-                       │        (Pydantic validation)            │
-                       └───────────┬─────────────────┬───────────┘
-                                   │ UCI             │ HTTPS / REST
-                                   ▼                 ▼
-             ┌───────────────────────────────┐  ┌─────────────────────────┐
-             │ Stockfish Engine (C++ Binary) │  │ Google Gemini AI API    │
-             │ Multithreaded evaluation & WDL│  │ Grandmaster commentary  │
-             └───────────────────────────────┘  └─────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│         React 18 + Vite  (localhost:5173)        │
+│   react-chessboard · chess.js · Web Audio API   │
+└────────────────────────┬────────────────────────┘
+                         │  HTTP / JSON (Vite proxy)
+                         │  POST /api/analyze
+                         │  POST /api/ai-commentary
+                         │  GET  /api/health
+                         ▼
+┌─────────────────────────────────────────────────┐
+│       FastAPI Python Backend  (localhost:8000)   │
+│         python-chess · Pydantic · httpx          │
+└────────────────┬────────────────────────────────┘
+                 │ UCI protocol        │ HTTPS REST
+                 ▼                    ▼
+  ┌──────────────────────┐  ┌──────────────────────┐
+  │  Stockfish 16+ (C++) │  │  Google Gemini API   │
+  │  Multi-threaded eval │  │  Grandmaster coaching│
+  │  WDL · MultiPV · NPS │  │  gemini-3.8-flash    │
+  └──────────────────────┘  └──────────────────────┘
 ```
 
 ---
 
 ## 📋 Prerequisites
 
-Before running the application, make sure you have:
+| Requirement | Version | Install |
+|---|---|---|
+| Node.js + npm | v18+ | [nodejs.org](https://nodejs.org) |
+| Python | v3.10+ | [python.org](https://python.org) |
+| Stockfish | 16+ | See below |
 
-1. **Node.js** (v18 or newer) & **npm**
-2. **Python** (v3.10 or newer)
-3. **Stockfish Chess Engine** installed on your system PATH:
-   * **macOS** (Homebrew):
-     ```bash
-     brew install stockfish
-     ```
-   * **Ubuntu / Debian**:
-     ```bash
-     sudo apt-get update && sudo apt-get install -y stockfish
-     ```
-   * **Arch Linux**:
-     ```bash
-     sudo pacman -S stockfish
-     ```
-   * **Windows**:
-     Download from [stockfishchess.org/download](https://stockfishchess.org/download/) and add the binary to your system `PATH`, or set the `STOCKFISH_PATH` environment variable.
+**Install Stockfish:**
+
+```bash
+# macOS (Homebrew)
+brew install stockfish
+
+# Ubuntu / Debian
+sudo apt-get install -y stockfish
+
+# Arch Linux
+sudo pacman -S stockfish
+
+# Windows — download from stockfishchess.org/download and add to PATH
+```
 
 ---
 
@@ -87,53 +118,55 @@ Before running the application, make sure you have:
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/your-username/fen-analise.git
-cd fen-analise
+git clone https://github.com/SilinMykola/FenAnalyzer.git
+cd FenAnalyzer
 ```
 
-### 2. Install Dependencies
+### 2. Install dependencies
 
-**Backend:**
 ```bash
+# Python backend
 pip install -r backend/requirements.txt
+
+# React frontend
+cd frontend && npm install && cd ..
 ```
 
-**Frontend:**
-```bash
-cd frontend
-npm install
-cd ..
-```
+### 3. Configure Gemini AI (optional)
+Get a free API key at [Google AI Studio](https://aistudio.google.com/app/apikey) and create `backend/.env`:
 
-### 3. (Optional) Configure Gemini AI Grandmaster
-To enable natural language Grandmaster coaching insights, get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey) and create a `backend/.env` file:
 ```bash
 cp backend/.env.example backend/.env
-# Set GEMINI_API_KEY=AIzaSy...
+# Edit backend/.env and set:
+# GEMINI_API_KEY=AIzaSy...
 ```
-*(You can also enter your key directly inside the web UI via the **Set API Key** button).*
 
-### 4. Launch the Application
-Run the startup script:
+> You can also enter the key directly in the web UI via the **⚙️ Set API Key** button — no restart needed.
+
+### 4. Start the application
+
 ```bash
+# One command — launches both backend and frontend
 ./start.sh
-```
-Or via npm:
-```bash
+
+# Or via npm
 npm run dev
 ```
 
-* **Frontend Web UI**: [http://localhost:5173](http://localhost:5173)
-* **Interactive API Documentation (Swagger)**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+| Service | URL |
+|---|---|
+| **Web UI** | http://localhost:5173 |
+| **API Docs (Swagger)** | http://localhost:8000/docs |
+| **Health Check** | http://localhost:8000/api/health |
 
 ---
 
 ## 🔌 API Reference
 
 ### `POST /api/analyze`
-Analyzes a chess position given a FEN string.
+Analyzes a chess position with Stockfish.
 
-**Request Payload:**
+**Request:**
 ```json
 {
   "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
@@ -145,32 +178,18 @@ Analyzes a chess position given a FEN string.
 **Response:**
 ```json
 {
-  "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+  "fen": "...",
   "turn": "white",
   "is_check": false,
   "is_checkmate": false,
   "is_stalemate": false,
   "verbal_verdict": "Even position (balanced game)",
-  "material": {
-    "white": 39,
-    "black": 39,
-    "diff": 0
-  },
-  "wdl": {
-    "win_pct": 7.5,
-    "draw_pct": 92.1,
-    "loss_pct": 0.4
-  },
-  "stats": {
-    "depth": 16,
-    "nodes": 45812,
-    "nps": 650000,
-    "time_seconds": 0.071
-  },
+  "material": { "white": 39, "black": 39, "diff": 0 },
+  "wdl": { "win_pct": 7.5, "draw_pct": 92.1, "loss_pct": 0.4 },
+  "stats": { "depth": 16, "nodes": 45812, "nps": 650000, "time_seconds": 0.071 },
   "lines": [
     {
       "rank": 1,
-      "move_uci": "d2d4",
       "move_san": "d4",
       "score": "+0.37",
       "explanation": "Pawn moves to d4",
@@ -182,12 +201,12 @@ Analyzes a chess position given a FEN string.
 ```
 
 ### `POST /api/ai-commentary`
-Generates natural language grandmaster commentary using Google Gemini 3.8 Flash.
+Generates grandmaster coaching commentary via Google Gemini.
 
-**Request Payload:**
+**Request:**
 ```json
 {
-  "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+  "fen": "...",
   "turn": "white",
   "score": "+0.37",
   "best_move_san": "d4",
@@ -200,43 +219,62 @@ Generates natural language grandmaster commentary using Google Gemini 3.8 Flash.
 ```json
 {
   "success": true,
-  "commentary": "White strikes in the center with 3. d4, opening lines for the bishops and challenging Black's central pawn immediately. Black must decide how to resolve the tension, while White aims for rapid piece activation and king safety.",
+  "commentary": "White strikes in the center with 3. d4, opening lines for the bishops...",
   "model": "gemini-3.8-flash"
 }
 ```
 
 ### `GET /api/health`
-Checks backend engine health, Stockfish binary availability, and Gemini API key status.
+Returns engine availability and API key configuration status.
 
 ---
 
 ## 📁 Project Structure
 
-```text
-FenAnalise/
+```
+FenAnalyzer/
 ├── backend/
-│   ├── main.py              # FastAPI service with Stockfish UCI engine integration
-│   └── requirements.txt     # Python dependencies & engine setup notes
-├── frontend/                # React 18 + Vite Single Page Application
-│   ├── src/
-│   │   ├── api/
-│   │   │   └── chessApi.js         # API client connecting frontend to FastAPI
-│   │   ├── components/
-│   │   │   ├── BoardView.jsx       # Interactive chessboard with drag-and-drop & best-move arrow
-│   │   │   ├── FenInput.jsx        # FEN input, presets, and analysis settings
-│   │   │   ├── AnalysisPanel.jsx   # Evaluation score, WDL bar, tactics & MultiPV lines
-│   │   │   └── PgnViewer.jsx       # PGN game parser and move-by-move explorer
-│   │   ├── utils/
-│   │   │   └── sound.js            # Synthesized Web Audio sound effects (moves/captures)
-│   │   ├── App.jsx                 # Top-level state orchestrator
-│   │   ├── index.css               # Modern dark-mode chess UI stylesheet
-│   │   └── main.jsx                # React DOM entry point
-│   ├── package.json
-│   └── vite.config.js              # Reverse proxy configuration (/api -> :8000)
-├── start.sh                        # One-command dual-process runner
-├── package.json                    # Root npm scripts runner
+│   ├── main.py               # FastAPI · Stockfish UCI · Gemini AI · Pydantic models
+│   ├── requirements.txt      # Python dependencies
+│   └── .env.example          # Environment variable template
+├── frontend/
+│   └── src/
+│       ├── api/
+│       │   └── chessApi.js         # API client (fetch wrapper for all endpoints)
+│       ├── components/
+│       │   ├── BoardView.jsx       # Interactive board · drag-drop · best-move arrow
+│       │   ├── BoardEditor.jsx     # Custom position builder · piece palette · FEN export
+│       │   ├── FenInput.jsx        # FEN input · presets · depth & MultiPV controls
+│       │   ├── AnalysisPanel.jsx   # Evaluation · WDL bar · MultiPV lines · Gemini AI
+│       │   └── PgnViewer.jsx       # PGN import · move-by-move navigation · keyboard support
+│       ├── utils/
+│       │   └── sound.js            # Synthesized Web Audio sound effects
+│       ├── App.jsx                 # Top-level state orchestrator
+│       ├── index.css               # Dark-mode design system & component styles
+│       └── main.jsx                # React DOM entry point
+├── start.sh                        # One-command launcher (backend + frontend)
+├── package.json                    # Root npm scripts
 └── README.md
 ```
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `←` | Previous move (PGN mode) |
+| `→` | Next move (PGN mode) |
+
+---
+
+## 🛠️ Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `GEMINI_API_KEY` | — | Google Gemini API key for AI commentary |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model name |
+| `STOCKFISH_PATH` | auto-detect | Override Stockfish binary path |
 
 ---
 
