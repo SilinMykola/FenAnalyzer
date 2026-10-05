@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const SAMPLE_PGN = `[Event "World Championship Match 1972"]
 [Site "Reykjavik ISL"]
@@ -25,8 +25,20 @@ export default function PgnViewer({
   headers,
 }) {
   const [showInput, setShowInput] = useState(false);
+  const activeRowRef = useRef(null);
+  const sheetRef = useRef(null);
 
-  // Group moves into pairs (white, black) respecting custom start move numbers
+  // Auto-scroll the active move row into view
+  useEffect(() => {
+    if (activeRowRef.current && sheetRef.current) {
+      activeRowRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [currentMoveIndex]);
+
+  // ── Build move-pair rows ────────────────────────────────────────────────────
   const movePairs = [];
   let currentRow = null;
 
@@ -42,7 +54,6 @@ export default function PgnViewer({
         blackIndex: null,
       };
     }
-
     if (m.color === 'w') {
       currentRow.white = m;
       currentRow.whiteIndex = idx;
@@ -51,11 +62,9 @@ export default function PgnViewer({
       currentRow.blackIndex = idx;
     }
   });
+  if (currentRow) movePairs.push(currentRow);
 
-  if (currentRow) {
-    movePairs.push(currentRow);
-  }
-
+  // ── Event handlers ──────────────────────────────────────────────────────────
   const handleImport = (e) => {
     e.preventDefault();
     if (!pgnText.trim()) return;
@@ -65,25 +74,43 @@ export default function PgnViewer({
 
   const handlePasteClipboard = async () => {
     try {
-      if (navigator.clipboard && navigator.clipboard.readText) {
+      if (navigator.clipboard?.readText) {
         const text = await navigator.clipboard.readText();
-        if (text) {
-          onPgnTextChange(text);
-        }
+        if (text) onPgnTextChange(text);
       }
-    } catch (err) {
-      // Browser permissions denied
+    } catch (_) {
+      // Clipboard permissions denied
     }
   };
 
+  // Metadata helpers
+  const event = headers?.Event;
+  const date = headers?.Date?.replace(/\.\?+/g, '');
+  const result = headers?.Result;
+  const whitePlayer = headers?.White;
+  const blackPlayer = headers?.Black;
+  const whiteElo = headers?.WhiteElo;
+  const blackElo = headers?.BlackElo;
+
+  const totalMoves = moves.length;
+  const activeMoveNum = currentMoveIndex >= 0 ? currentMoveIndex + 1 : 0;
+
   return (
     <div className="card pgn-card">
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="pgn-header">
         <div className="pgn-title">
           <h3>PGN Game Review</h3>
-          {headers?.White && headers?.Black && (
+          {whitePlayer && blackPlayer && (
             <span className="players-badge">
-              {headers.White} vs {headers.Black} ({headers.Result || '*'})
+              {whitePlayer}{whiteElo ? ` (${whiteElo})` : ''} vs {blackPlayer}{blackElo ? ` (${blackElo})` : ''}
+              {result && <span className="result-tag">{result}</span>}
+            </span>
+          )}
+          {event && (
+            <span className="event-label">
+              {event}{date ? ` · ${date}` : ''}
             </span>
           )}
         </div>
@@ -92,11 +119,8 @@ export default function PgnViewer({
             <button
               type="button"
               className="btn-reset-game"
-              onClick={() => {
-                onPgnTextChange('');
-                onResetGame();
-              }}
-              title="Clear loaded game and reset board to starting position"
+              onClick={() => { onPgnTextChange(''); onResetGame(); }}
+              title="Clear loaded game and reset board"
             >
               🗑️ Clear Game
             </button>
@@ -111,6 +135,7 @@ export default function PgnViewer({
         </div>
       </div>
 
+      {/* ── PGN Import Form ─────────────────────────────────────────────────── */}
       {showInput && (
         <form onSubmit={handleImport} className="pgn-input-form">
           <div className="pgn-textarea-wrapper">
@@ -133,135 +158,133 @@ export default function PgnViewer({
               </button>
             )}
           </div>
-
           <div className="pgn-form-actions">
             <div className="pgn-left-actions">
-              <button
-                type="button"
-                className="preset-btn"
-                onClick={handlePasteClipboard}
-                title="Paste text from clipboard"
-              >
+              <button type="button" className="preset-btn" onClick={handlePasteClipboard}>
                 📋 Paste from Clipboard
               </button>
-              <button
-                type="button"
-                className="preset-btn"
-                onClick={() => onPgnTextChange(SAMPLE_PGN)}
-              >
+              <button type="button" className="preset-btn" onClick={() => onPgnTextChange(SAMPLE_PGN)}>
                 Load Fischer vs Spassky
               </button>
               {pgnText && (
-                <button
-                  type="button"
-                  className="preset-btn btn-danger-text"
-                  onClick={() => onPgnTextChange('')}
-                >
+                <button type="button" className="preset-btn btn-danger-text" onClick={() => onPgnTextChange('')}>
                   Clear Text
                 </button>
               )}
             </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary btn-sm"
-              disabled={!pgnText.trim()}
-            >
-              Parse & Load Game
+            <button type="submit" className="btn btn-primary btn-sm" disabled={!pgnText.trim()}>
+              Parse &amp; Load Game
             </button>
           </div>
         </form>
       )}
 
-      {/* Navigation Controller */}
+      {/* ── Navigation Controls ─────────────────────────────────────────────── */}
       <div className="pgn-controls">
-        <button
-          type="button"
-          className="pgn-nav-btn"
-          onClick={onFirstMove}
-          disabled={currentMoveIndex < 0}
-          title="Start of game (Home)"
-        >
-          ⏮ First
+        <button type="button" className="pgn-nav-btn" onClick={onFirstMove} disabled={currentMoveIndex < 0} title="Start of game (Home)">
+          ⏮
         </button>
-        <button
-          type="button"
-          className="pgn-nav-btn"
-          onClick={onPrevMove}
-          disabled={currentMoveIndex < 0}
-          title="Previous move (← Arrow)"
-        >
-          ◀ Prev
+        <button type="button" className="pgn-nav-btn" onClick={onPrevMove} disabled={currentMoveIndex < 0} title="Previous move (← Arrow)">
+          ◀
         </button>
+
         <span className="pgn-counter">
-          Move {currentMoveIndex + 1} of {moves.length}
+          {totalMoves > 0
+            ? <>Move <strong>{activeMoveNum}</strong> / {totalMoves}</>
+            : 'No game loaded'}
         </span>
-        <button
-          type="button"
-          className="pgn-nav-btn"
-          onClick={onNextMove}
-          disabled={currentMoveIndex >= moves.length - 1}
-          title="Next move (→ Arrow)"
-        >
-          Next ▶
+
+        <button type="button" className="pgn-nav-btn" onClick={onNextMove} disabled={currentMoveIndex >= moves.length - 1} title="Next move (→ Arrow)">
+          ▶
         </button>
-        <button
-          type="button"
-          className="pgn-nav-btn"
-          onClick={onLastMove}
-          disabled={currentMoveIndex >= moves.length - 1}
-          title="End of game (End)"
-        >
-          Last ⏭
+        <button type="button" className="pgn-nav-btn" onClick={onLastMove} disabled={currentMoveIndex >= moves.length - 1} title="End of game (End)">
+          ⏭
         </button>
       </div>
 
-      {/* Moves Scoresheet List */}
-      <div className="moves-sheet">
+      {/* ── Moves Scoresheet Table ──────────────────────────────────────────── */}
+      <div className="moves-sheet" ref={sheetRef}>
         {movePairs.length === 0 ? (
           <div className="no-moves-msg">
             <p>No PGN game loaded yet.</p>
             <button
               type="button"
               className="preset-btn mt-2"
-              onClick={() => {
-                onPgnTextChange(SAMPLE_PGN);
-                onLoadPgn(SAMPLE_PGN);
-              }}
+              onClick={() => { onPgnTextChange(SAMPLE_PGN); onLoadPgn(SAMPLE_PGN); }}
             >
               Load Sample World Championship Game
             </button>
           </div>
         ) : (
-          <div className="moves-grid">
-            {movePairs.map((pair) => (
-              <div key={pair.number} className="move-pair-row">
-                <span className="move-number">{pair.number}.</span>
-                {pair.white ? (
-                  <button
-                    type="button"
-                    className={`move-btn ${currentMoveIndex === pair.whiteIndex ? 'active' : ''}`}
-                    onClick={() => onSelectMove(pair.whiteIndex)}
+          <table className="moves-table">
+            <thead>
+              <tr>
+                <th className="col-num">#</th>
+                <th className="col-white">⚪ White</th>
+                <th className="col-black">⚫ Black</th>
+              </tr>
+            </thead>
+            <tbody>
+              {movePairs.map((pair) => {
+                const whiteActive = currentMoveIndex === pair.whiteIndex;
+                const blackActive = currentMoveIndex === pair.blackIndex;
+                const rowActive = whiteActive || blackActive;
+
+                return (
+                  <tr
+                    key={pair.number}
+                    className={`move-row ${rowActive ? 'row-active' : ''}`}
+                    ref={rowActive ? activeRowRef : null}
                   >
-                    {pair.white.san}
-                  </button>
-                ) : (
-                  <span className="move-placeholder">...</span>
-                )}
-                {pair.black && (
-                  <button
-                    type="button"
-                    className={`move-btn ${currentMoveIndex === pair.blackIndex ? 'active' : ''}`}
-                    onClick={() => onSelectMove(pair.blackIndex)}
-                  >
-                    {pair.black.san}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+                    <td className="col-num">{pair.number}.</td>
+                    <td className="col-white">
+                      {pair.white ? (
+                        <button
+                          type="button"
+                          className={`move-btn ${whiteActive ? 'active' : ''}`}
+                          onClick={() => onSelectMove(pair.whiteIndex)}
+                          title={`Go to move ${pair.number}. ${pair.white.san}`}
+                        >
+                          {pair.white.san}
+                        </button>
+                      ) : (
+                        <span className="move-placeholder">—</span>
+                      )}
+                    </td>
+                    <td className="col-black">
+                      {pair.black ? (
+                        <button
+                          type="button"
+                          className={`move-btn ${blackActive ? 'active' : ''}`}
+                          onClick={() => onSelectMove(pair.blackIndex)}
+                          title={`Go to move ${pair.number}... ${pair.black.san}`}
+                        >
+                          {pair.black.san}
+                        </button>
+                      ) : (
+                        <span className="move-placeholder">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
+
+      {/* ── Result Footer ───────────────────────────────────────────────────── */}
+      {result && moves.length > 0 && (
+        <div className="pgn-result-footer">
+          <span className="result-label">Result:</span>
+          <span className={`result-value ${result === '1-0' ? 'white-wins' : result === '0-1' ? 'black-wins' : 'draw'}`}>
+            {result === '1-0' ? '1–0 White wins'
+              : result === '0-1' ? '0–1 Black wins'
+              : result === '1/2-1/2' ? '½–½ Draw'
+              : result}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
