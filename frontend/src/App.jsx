@@ -4,6 +4,7 @@ import FenInput from './components/FenInput';
 import BoardView from './components/BoardView';
 import AnalysisPanel from './components/AnalysisPanel';
 import PgnViewer from './components/PgnViewer';
+import BoardEditor from './components/BoardEditor';
 import { analyzeFen, checkBackendHealth, getAiCommentary } from './api/chessApi';
 import { playMoveSound } from './utils/sound';
 
@@ -351,6 +352,13 @@ export default function App() {
             >
               PGN Game Explorer
             </button>
+            <button
+              type="button"
+              className={`tab-pill ${activeTab === 'editor' ? 'active' : ''}`}
+              onClick={() => setActiveTab('editor')}
+            >
+              🧩 Board Editor
+            </button>
           </div>
 
           {/* Reset / New Game button */}
@@ -387,124 +395,139 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="main-content">
-        {/* Top Control Section: FEN or PGN based on activeTab */}
-        <section className="input-section">
-          {activeTab === 'fen' ? (
-            <FenInput
-              fen={fen}
-              onFenChange={handleFenChange}
-              depth={depth}
-              onDepthChange={setDepth}
-              multipv={multipv}
-              onMultipvChange={setMultipv}
-              onAnalyze={() => triggerAnalysis(fen)}
-              loading={loading}
-            />
-          ) : (
-            <PgnViewer
-              pgnText={pgnText}
-              onPgnTextChange={setPgnText}
-              onLoadPgn={handleLoadPgn}
-              onResetGame={handleResetToStartingPosition}
-              moves={pgnMoves}
-              currentMoveIndex={currentMoveIndex}
-              onSelectMove={handleSelectPgnMove}
-              onPrevMove={handlePrevMove}
-              onNextMove={handleNextMove}
-              onFirstMove={() => handleSelectPgnMove(-1)}
-              onLastMove={() => handleSelectPgnMove(pgnMoves.length - 1)}
-              headers={pgnHeaders}
-            />
-          )}
-        </section>
+        {activeTab === 'editor' ? (
+          <BoardEditor
+            initialFen={fen}
+            onApplyFen={(newFen) => {
+              setVariationPreview(null);
+              setFen(newFen);
+              setActiveTab('fen');
+              playMoveSound(false);
+              triggerAnalysis(newFen);
+            }}
+          />
+        ) : (
+          <>
+            {/* Top Control Section: FEN or PGN based on activeTab */}
+            <section className="input-section">
+              {activeTab === 'fen' ? (
+                <FenInput
+                  fen={fen}
+                  onFenChange={handleFenChange}
+                  depth={depth}
+                  onDepthChange={setDepth}
+                  multipv={multipv}
+                  onMultipvChange={setMultipv}
+                  onAnalyze={() => triggerAnalysis(fen)}
+                  loading={loading}
+                />
+              ) : (
+                <PgnViewer
+                  pgnText={pgnText}
+                  onPgnTextChange={setPgnText}
+                  onLoadPgn={handleLoadPgn}
+                  onResetGame={handleResetToStartingPosition}
+                  moves={pgnMoves}
+                  currentMoveIndex={currentMoveIndex}
+                  onSelectMove={handleSelectPgnMove}
+                  onPrevMove={handlePrevMove}
+                  onNextMove={handleNextMove}
+                  onFirstMove={() => handleSelectPgnMove(-1)}
+                  onLastMove={() => handleSelectPgnMove(pgnMoves.length - 1)}
+                  headers={pgnHeaders}
+                />
+              )}
+            </section>
 
-        {/* Error notification banner */}
-        {error && (
-          <div className="alert-banner">
-            <span className="alert-icon">⚠️</span>
-            <div className="alert-content">
-              <strong>Notice:</strong> {error}
-            </div>
-            <button className="alert-close" onClick={() => setError(null)}>
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* Two-column layout: Board on left, Analysis on right */}
-        <div className="dashboard-grid">
-          <div className="board-column">
-            {variationPreview && (
-              <div className="variation-preview-banner">
-                <div className="vpb-info">
-                  <span className="vpb-badge">Line #{variationPreview.lineRank}</span>
-                  <span className="vpb-step">
-                    Move {variationPreview.stepIndex + 1}/{variationPreview.moves.length}:{' '}
-                    <strong>{variationPreview.moves[variationPreview.stepIndex]}</strong>
-                  </span>
+            {/* Error notification banner */}
+            {error && (
+              <div className="alert-banner">
+                <span className="alert-icon">⚠️</span>
+                <div className="alert-content">
+                  <strong>Notice:</strong> {error}
                 </div>
-                <div className="vpb-actions">
-                  <button
-                    type="button"
-                    className="btn-vpb"
-                    onClick={() => handleStepVariation(-1)}
-                    title="Previous move"
-                  >
-                    ◀ Prev
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-vpb"
-                    onClick={() => handleStepVariation(1)}
-                    disabled={variationPreview.stepIndex >= variationPreview.moves.length - 1}
-                    title="Next move"
-                  >
-                    Next ▶
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-vpb btn-vpb-play"
-                    onClick={handleApplyVariationAsCurrent}
-                    title="Set position as current and analyze"
-                  >
-                    ✅ Play from here
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-vpb btn-vpb-exit"
-                    onClick={handleExitVariationPreview}
-                    title="Exit preview and return to base position"
-                  >
-                    ✕ Exit
-                  </button>
-                </div>
+                <button className="alert-close" onClick={() => setError(null)}>
+                  ✕
+                </button>
               </div>
             )}
-            <BoardView
-              fen={variationPreview ? variationPreview.previewFen : fen}
-              bestMove={variationPreview ? null : bestMove}
-              turn={analysis?.turn}
-              onPieceDrop={handlePieceDrop}
-              onPlayBestMove={handlePlayBestMove}
-              isGameOver={isGameOver || Boolean(variationPreview)}
-            />
-          </div>
 
-          <div className="analysis-column">
-            <AnalysisPanel
-              analysis={analysis}
-              loading={loading}
-              onAskGrandmaster={handleAskGrandmaster}
-              aiCommentary={aiCommentary}
-              aiLoading={aiLoading}
-              aiError={aiError}
-              customApiKey={customApiKey}
-              onSaveCustomApiKey={handleSaveCustomApiKey}
-              variationPreview={variationPreview}
-              onPreviewVariation={handlePreviewVariation}
-            />
-          </div>
-        </div>
+            {/* Two-column layout: Board on left, Analysis on right */}
+            <div className="dashboard-grid">
+              <div className="board-column">
+                {variationPreview && (
+                  <div className="variation-preview-banner">
+                    <div className="vpb-info">
+                      <span className="vpb-badge">Line #{variationPreview.lineRank}</span>
+                      <span className="vpb-step">
+                        Move {variationPreview.stepIndex + 1}/{variationPreview.moves.length}:{' '}
+                        <strong>{variationPreview.moves[variationPreview.stepIndex]}</strong>
+                      </span>
+                    </div>
+                    <div className="vpb-actions">
+                      <button
+                        type="button"
+                        className="btn-vpb"
+                        onClick={() => handleStepVariation(-1)}
+                        title="Previous move"
+                      >
+                        ◀ Prev
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-vpb"
+                        onClick={() => handleStepVariation(1)}
+                        disabled={variationPreview.stepIndex >= variationPreview.moves.length - 1}
+                        title="Next move"
+                      >
+                        Next ▶
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-vpb btn-vpb-play"
+                        onClick={handleApplyVariationAsCurrent}
+                        title="Set position as current and analyze"
+                      >
+                        ✅ Play from here
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-vpb btn-vpb-exit"
+                        onClick={handleExitVariationPreview}
+                        title="Exit preview and return to base position"
+                      >
+                        ✕ Exit
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <BoardView
+                  fen={variationPreview ? variationPreview.previewFen : fen}
+                  bestMove={variationPreview ? null : bestMove}
+                  turn={analysis?.turn}
+                  onPieceDrop={handlePieceDrop}
+                  onPlayBestMove={handlePlayBestMove}
+                  isGameOver={isGameOver || Boolean(variationPreview)}
+                />
+              </div>
+
+              <div className="analysis-column">
+                <AnalysisPanel
+                  analysis={analysis}
+                  loading={loading}
+                  onAskGrandmaster={handleAskGrandmaster}
+                  aiCommentary={aiCommentary}
+                  aiLoading={aiLoading}
+                  aiError={aiError}
+                  customApiKey={customApiKey}
+                  onSaveCustomApiKey={handleSaveCustomApiKey}
+                  variationPreview={variationPreview}
+                  onPreviewVariation={handlePreviewVariation}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </main>
     </div>
   );
