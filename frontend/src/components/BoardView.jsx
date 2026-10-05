@@ -13,17 +13,23 @@ export default function BoardView({
   const [orientation, setOrientation] = useState('white');
   const [moveFrom, setMoveFrom] = useState(null);
   const [optionSquares, setOptionSquares] = useState({});
+  const [showArrow, setShowArrow] = useState(true);
 
-  // Auto-align board orientation with current turn if desired
+  // Instantly clear the green arrow whenever fen or orientation changes
   useEffect(() => {
-    if (turn === 'black' && orientation === 'white') {
-      // Keep orientation user-controllable unless specifically reset
+    setShowArrow(false);
+  }, [fen, orientation]);
+
+  // Show arrow only when a fresh bestMove is received
+  useEffect(() => {
+    if (bestMove) {
+      setShowArrow(true);
     }
-  }, [turn]);
+  }, [bestMove]);
 
   // Extract UCI start and end squares for the best move arrow
   const customArrows = [];
-  if (bestMove && bestMove.length >= 4) {
+  if (showArrow && bestMove && bestMove.length >= 4) {
     const from = bestMove.slice(0, 2);
     const to = bestMove.slice(2, 4);
     customArrows.push([from, to, 'rgba(34, 197, 94, 0.85)']);
@@ -31,6 +37,7 @@ export default function BoardView({
 
   const handleDrop = (sourceSquare, targetSquare, piece) => {
     if (sourceSquare === targetSquare) return false;
+    setShowArrow(false);
     const success = onPieceDrop(sourceSquare, targetSquare, piece);
     if (success) {
       setOptionSquares({});

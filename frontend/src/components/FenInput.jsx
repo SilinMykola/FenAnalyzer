@@ -29,6 +29,17 @@ export default function FenInput({
   onAnalyze,
   loading,
 }) {
+  const handlePasteClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        onFenChange(text.trim());
+      }
+    } catch (err) {
+      console.warn('Clipboard read permission denied:', err);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!fen.trim() || loading) return;
@@ -39,9 +50,33 @@ export default function FenInput({
     <div className="card fen-input-card">
       <form onSubmit={handleSubmit} className="fen-form">
         <div className="form-group">
-          <label htmlFor="fen-input" className="form-label">
-            FEN Position
-          </label>
+          <div className="form-label-row">
+            <label htmlFor="fen-input" className="form-label">
+              FEN Position
+            </label>
+            <div className="label-actions">
+              <button
+                type="button"
+                className="btn-text-action"
+                onClick={handlePasteClipboard}
+                title="Paste FEN from clipboard"
+                disabled={loading}
+              >
+                📋 Paste
+              </button>
+              {fen && (
+                <button
+                  type="button"
+                  className="btn-text-action"
+                  onClick={() => onFenChange('')}
+                  title="Clear FEN input"
+                  disabled={loading}
+                >
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+          </div>
           <div className="input-with-button">
             <input
               id="fen-input"

@@ -411,10 +411,10 @@ Explain the strategic and tactical essence of this position to an improving ches
 - Recommended Move: {payload.best_move_san} ({payload.explanation or 'Positional move'})
 
 Instructions:
-1. Write 2 to 3 concise, clear sentences.
-2. Explain the key tactical threat or positional advantage created by {payload.best_move_san}.
-3. Mention what plan {payload.turn.capitalize()} should follow next.
-4. Keep the tone inspiring and instructive like a grandmaster analyzing a post-game review."""
+1. Provide a direct, instructive Grandmaster assessment in 2-4 sentences.
+2. Clearly explain WHY {payload.best_move_san} is the strongest move (tactical trap, space advantage, piece activity, or defensive necessity).
+3. Outline the immediate concrete plan for {payload.turn.capitalize()}.
+4. Do NOT output a raw FEN breakdown or lists of piece locations; focus directly on ideas and plans."""
 
     model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip()
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key.strip()}"
@@ -422,7 +422,7 @@ Instructions:
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0.4,
-            "maxOutputTokens": 350,
+            "maxOutputTokens": 1000,
         },
     }
 

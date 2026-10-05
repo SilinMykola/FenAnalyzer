@@ -1183,3 +1183,96 @@ body {
   font-style: italic;
 }
 
+/* FEN form label actions (Paste & Clear) */
+.form-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.label-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-text-action {
+  background: transparent;
+  border: 1px solid #2d3748;
+  color: #94a3b8;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-text-action:hover:not(:disabled) {
+  background: #1f2937;
+  color: #38bdf8;
+  border-color: #38bdf8;
+}
+
+/* AI Loading card */
+.ai-loading-card {
+  margin-top: 12px;
+  padding: 14px;
+  background: #151b24;
+  border: 1px dashed #374151;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ai-pulsing-spinner {
+  width: 24px;
+  height: 24px;
+  border-width: 2px;
+  margin: 0;
+  flex-shrink: 0;
+  border-top-color: #6366f1;
+}
+
+.ai-loading-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ai-loading-text strong {
+  font-size: 0.84rem;
+  color: #e2e8f0;
+}
+
+.ai-loading-text span {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.ai-commentary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.btn-refresh-ai {
+  background: #232c3d;
+  border: 1px solid #3b465b;
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.btn-refresh-ai:hover {
+  background: #333f57;
+  color: #fff;
+  border-color: #6366f1;
+}
+

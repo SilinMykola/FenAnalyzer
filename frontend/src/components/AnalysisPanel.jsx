@@ -195,11 +195,30 @@ export default function AnalysisPanel({
           </div>
         )}
 
+        {/* AI Loading state placeholder */}
+        {aiLoading && (
+          <div className="ai-loading-card">
+            <div className="pulsing-spinner ai-pulsing-spinner"></div>
+            <div className="ai-loading-text">
+              <strong>Grandmaster is analyzing the board...</strong>
+              <span>Formulating tactical breakdown and strategic plan with Gemini</span>
+            </div>
+          </div>
+        )}
+
         {/* AI Commentary result card */}
-        {aiCommentary && (
+        {aiCommentary && !aiLoading && (
           <div className="ai-commentary-card">
-            <div className="ai-commentary-badge">
-              <span>FIDE Grandmaster Coaching:</span>
+            <div className="ai-commentary-header">
+              <span className="ai-commentary-badge">🎓 FIDE Grandmaster Coaching:</span>
+              <button
+                type="button"
+                className="btn-refresh-ai"
+                onClick={onAskGrandmaster}
+                title="Regenerate Grandmaster commentary"
+              >
+                🔄 Refresh
+              </button>
             </div>
             <p className="ai-commentary-text">"{aiCommentary}"</p>
           </div>

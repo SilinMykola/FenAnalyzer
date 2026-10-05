@@ -54,6 +54,7 @@ export default function App() {
 
       setLoading(true);
       setError(null);
+      setAnalysis(null);
       // Clear previous position's AI commentary
       setAiCommentary(null);
       setAiError(null);
