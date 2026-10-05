@@ -50,34 +50,10 @@ export default function FenInput({
     <div className="card fen-input-card">
       <form onSubmit={handleSubmit} className="fen-form">
         <div className="form-group">
-          <div className="form-label-row">
-            <label htmlFor="fen-input" className="form-label">
-              FEN Position
-            </label>
-            <div className="label-actions">
-              <button
-                type="button"
-                className="btn-text-action"
-                onClick={handlePasteClipboard}
-                title="Paste FEN from clipboard"
-                disabled={loading}
-              >
-                📋 Paste
-              </button>
-              {fen && (
-                <button
-                  type="button"
-                  className="btn-text-action"
-                  onClick={() => onFenChange('')}
-                  title="Clear FEN input"
-                  disabled={loading}
-                >
-                  ✕ Clear
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="input-with-button">
+          <label htmlFor="fen-input" className="form-label">
+            FEN Position
+          </label>
+          <div className="pgn-textarea-wrapper">
             <input
               id="fen-input"
               type="text"
@@ -91,21 +67,40 @@ export default function FenInput({
             {fen && (
               <button
                 type="button"
-                className="btn-clear"
+                className="btn-clear-inside"
                 onClick={() => onFenChange('')}
-                title="Clear input"
+                title="Clear FEN"
                 disabled={loading}
               >
-                ✕
+                ✕ Clear
               </button>
             )}
           </div>
         </div>
 
-        {/* Quick presets */}
+        {/* Action buttons & presets in unified PGN style */}
         <div className="presets-container">
-          <span className="presets-label">Examples:</span>
           <div className="presets-buttons">
+            <button
+              type="button"
+              className="preset-btn"
+              onClick={handlePasteClipboard}
+              title="Paste FEN from clipboard"
+              disabled={loading}
+            >
+              📋 Paste from Clipboard
+            </button>
+            {fen && (
+              <button
+                type="button"
+                className="preset-btn btn-danger-text"
+                onClick={() => onFenChange('')}
+                disabled={loading}
+              >
+                Clear FEN
+              </button>
+            )}
+            <span className="presets-label" style={{ marginLeft: '6px' }}>Examples:</span>
             {PRESETS.map((p, index) => (
               <button
                 key={index}

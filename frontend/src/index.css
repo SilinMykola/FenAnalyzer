@@ -975,6 +975,10 @@ body {
   width: 100%;
 }
 
+.pgn-textarea-wrapper input.text-input {
+  padding-right: 76px;
+}
+
 .btn-clear-inside {
   position: absolute;
   top: 8px;
