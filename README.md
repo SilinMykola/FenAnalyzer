@@ -36,7 +36,10 @@ and get natural language grandmaster coaching — all in a modern dark-mode UI.
 
 ### 📋 PGN Game Explorer
 - Import and parse games from **Chess.com** or **Lichess** (including custom starting FEN tournaments)
-- Navigate moves with **Previous / Next buttons** or **keyboard arrow keys** (`←` / `→`)
+- **Chess.com-style scoresheet table** — moves displayed in a 3-column table (`#` / `⚪ White` / `⚫ Black`) with sticky header
+- **Active move highlighted** with a blue background and glow ring; table **auto-scrolls** to keep the current move in view
+- **Game metadata** — displays player names, ELO ratings, event name, date, and color-coded result badge (`1–0` / `0–1` / `½–½`)
+- Navigate moves with **⏮ ◀ ▶ ⏭ buttons** or **keyboard arrow keys** (`←` / `→`)
 - Real-time Stockfish evaluation and best-move arrows on every step
 - Clear / Reset controls to instantly load a new game
 
