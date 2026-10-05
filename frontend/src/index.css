@@ -1280,3 +1280,129 @@ body {
   border-color: #6366f1;
 }
 
+/* Interactive Engine Variation Moves & Navigation */
+.variation-moves-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+.btn-pv-move {
+  background: #1e2633;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.8rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-pv-move:hover {
+  background: #2d3b4e;
+  border-color: #38bdf8;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.btn-pv-move.active {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+}
+
+/* Banner shown when viewing an interactive engine line */
+.variation-preview-banner {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #38bdf8;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.15);
+}
+
+.vpb-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vpb-badge {
+  background: #0284c7;
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.vpb-step {
+  font-size: 0.86rem;
+  color: #e2e8f0;
+}
+
+.vpb-step strong {
+  color: #38bdf8;
+}
+
+.vpb-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn-vpb {
+  background: #1e293b;
+  border: 1px solid #475569;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-vpb:hover:not(:disabled) {
+  background: #333f57;
+  color: #fff;
+}
+
+.btn-vpb:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-vpb-play {
+  background: #14532d;
+  border-color: #22c55e;
+  color: #86efac;
+}
+
+.btn-vpb-play:hover {
+  background: #166534;
+  color: #fff;
+}
+
+.btn-vpb-exit {
+  background: #450a0a;
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+.btn-vpb-exit:hover {
+  background: #7f1d1d;
+  color: #fff;
+}
+

@@ -77,8 +77,12 @@ export default function App() {
     triggerAnalysis(DEFAULT_FEN);
   }, [triggerAnalysis]);
 
+  // Variation Preview state (for clicking moves in Stockfish engine lines)
+  const [variationPreview, setVariationPreview] = useState(null);
+
   // Handler for manual FEN update (e.g. typing or preset button)
   const handleFenChange = (newFen) => {
+    setVariationPreview(null);
     setFen(newFen);
     setError(null);
     try {
@@ -88,8 +92,55 @@ export default function App() {
     }
   };
 
+  // Preview interactive moves from Stockfish PV
+  const handlePreviewVariation = (lineRank, moves, stepIndex) => {
+    try {
+      const tempGame = new Chess(fen);
+      for (let i = 0; i <= stepIndex; i++) {
+        tempGame.move(moves[i]);
+      }
+      playMoveSound(false);
+      setVariationPreview({
+        lineRank,
+        moves,
+        stepIndex,
+        previewFen: tempGame.fen(),
+      });
+    } catch (err) {
+      console.warn('Failed to replay variation moves:', err);
+    }
+  };
+
+  const handleStepVariation = (delta) => {
+    if (!variationPreview) return;
+    const newIndex = variationPreview.stepIndex + delta;
+    if (newIndex < 0) {
+      setVariationPreview(null);
+      playMoveSound(false);
+      return;
+    }
+    if (newIndex >= variationPreview.moves.length) return;
+    handlePreviewVariation(variationPreview.lineRank, variationPreview.moves, newIndex);
+  };
+
+  const handleExitVariationPreview = () => {
+    setVariationPreview(null);
+    playMoveSound(false);
+  };
+
+  const handleApplyVariationAsCurrent = () => {
+    if (!variationPreview) return;
+    const targetFen = variationPreview.previewFen;
+    gameRef.current.load(targetFen);
+    setFen(targetFen);
+    setVariationPreview(null);
+    playMoveSound(false);
+    triggerAnalysis(targetFen);
+  };
+
   // Reset to Starting Position (Clears board, PGN, and inputs)
   const handleResetToStartingPosition = () => {
+    setVariationPreview(null);
     gameRef.current.load(DEFAULT_FEN);
     setFen(DEFAULT_FEN);
     setPgnText('');
@@ -106,6 +157,7 @@ export default function App() {
 
   // Handler for making a move via Drag & Drop on the board
   const handlePieceDrop = (sourceSquare, targetSquare) => {
+    setVariationPreview(null);
     try {
       const move = gameRef.current.move({
         from: sourceSquare,
@@ -382,13 +434,59 @@ export default function App() {
         {/* Two-column layout: Board on left, Analysis on right */}
         <div className="dashboard-grid">
           <div className="board-column">
+            {variationPreview && (
+              <div className="variation-preview-banner">
+                <div className="vpb-info">
+                  <span className="vpb-badge">Line #{variationPreview.lineRank}</span>
+                  <span className="vpb-step">
+                    Move {variationPreview.stepIndex + 1}/{variationPreview.moves.length}:{' '}
+                    <strong>{variationPreview.moves[variationPreview.stepIndex]}</strong>
+                  </span>
+                </div>
+                <div className="vpb-actions">
+                  <button
+                    type="button"
+                    className="btn-vpb"
+                    onClick={() => handleStepVariation(-1)}
+                    title="Previous move"
+                  >
+                    ◀ Prev
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-vpb"
+                    onClick={() => handleStepVariation(1)}
+                    disabled={variationPreview.stepIndex >= variationPreview.moves.length - 1}
+                    title="Next move"
+                  >
+                    Next ▶
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-vpb btn-vpb-play"
+                    onClick={handleApplyVariationAsCurrent}
+                    title="Set position as current and analyze"
+                  >
+                    ✅ Play from here
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-vpb btn-vpb-exit"
+                    onClick={handleExitVariationPreview}
+                    title="Exit preview and return to base position"
+                  >
+                    ✕ Exit
+                  </button>
+                </div>
+              </div>
+            )}
             <BoardView
-              fen={fen}
-              bestMove={bestMove}
+              fen={variationPreview ? variationPreview.previewFen : fen}
+              bestMove={variationPreview ? null : bestMove}
               turn={analysis?.turn}
               onPieceDrop={handlePieceDrop}
               onPlayBestMove={handlePlayBestMove}
-              isGameOver={isGameOver}
+              isGameOver={isGameOver || Boolean(variationPreview)}
             />
           </div>
 
@@ -402,6 +500,8 @@ export default function App() {
               aiError={aiError}
               customApiKey={customApiKey}
               onSaveCustomApiKey={handleSaveCustomApiKey}
+              variationPreview={variationPreview}
+              onPreviewVariation={handlePreviewVariation}
             />
           </div>
         </div>

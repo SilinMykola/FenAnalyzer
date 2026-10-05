@@ -9,6 +9,8 @@ export default function AnalysisPanel({
   aiError,
   customApiKey,
   onSaveCustomApiKey,
+  variationPreview,
+  onPreviewVariation,
 }) {
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [keyDraft, setKeyDraft] = useState('');
@@ -292,10 +294,34 @@ export default function AnalysisPanel({
                 </div>
                 <div className="line-variation">
                   <span className="variation-label">Variation:</span>{' '}
-                  <span className="variation-moves">
-                    {line.pv_san && line.pv_san.length > 0
-                      ? line.pv_san.join(' ')
-                      : line.move_san}
+                  <span className="variation-moves-list">
+                    {(line.pv_san && line.pv_san.length > 0 ? line.pv_san : [line.move_san]).map(
+                      (m, mIdx) => {
+                        const isSelected =
+                          variationPreview?.lineRank === line.rank &&
+                          variationPreview?.stepIndex === mIdx;
+                        return (
+                          <button
+                            key={mIdx}
+                            type="button"
+                            className={`btn-pv-move ${isSelected ? 'active' : ''}`}
+                            onClick={() =>
+                              onPreviewVariation &&
+                              onPreviewVariation(
+                                line.rank,
+                                line.pv_san && line.pv_san.length > 0
+                                  ? line.pv_san
+                                  : [line.move_san],
+                                mIdx
+                              )
+                            }
+                            title={`Preview position after move ${mIdx + 1}: ${m}`}
+                          >
+                            {m}
+                          </button>
+                        );
+                      }
+                    )}
                   </span>
                 </div>
               </div>
