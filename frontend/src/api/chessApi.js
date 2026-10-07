@@ -64,3 +64,28 @@ export async function getAiCommentary({
 
   return response.json();
 }
+
+/**
+ * Reads a chess position from an image (sent as base64) using Gemini.
+ * Resolves to { success, fen, turn_detected, is_valid, error }.
+ */
+export async function recognizeImage({ image_base64, mime_type, custom_api_key }) {
+  const response = await fetch('/api/recognize-image', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      image_base64,
+      mime_type,
+      custom_api_key: custom_api_key || undefined,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Server error: ${response.status}`);
+  }
+
+  return response.json();
+}

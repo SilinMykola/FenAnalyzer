@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { analyzeFen, checkBackendHealth, getAiCommentary } from './chessApi';
+import { analyzeFen, checkBackendHealth, getAiCommentary, recognizeImage } from './chessApi';
 
 // A stand-in for the browser's fetch: every test decides what the "server"
 // answers, and can then inspect what the client sent.
@@ -135,5 +135,43 @@ describe('getAiCommentary', () => {
     fetchMock.mockResolvedValue(brokenResponse(500));
 
     await expect(getAiCommentary(request)).rejects.toThrow('Server error: 500');
+  });
+});
+
+describe('recognizeImage', () => {
+  const request = { image_base64: 'aGVsbG8=', mime_type: 'image/png' };
+
+  it('posts the image to the recognition endpoint', async () => {
+    const answer = { success: true, fen: '4k3/8/8/8/8/8/8/4K3 w - - 0 1' };
+    fetchMock.mockResolvedValue(jsonResponse(answer));
+
+    const result = await recognizeImage({ ...request, custom_api_key: 'user-key' });
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/recognize-image');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(sentBody()).toEqual({ ...request, custom_api_key: 'user-key' });
+    expect(result).toEqual(answer);
+  });
+
+  it('leaves the key out when the user has not set one', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }));
+
+    await recognizeImage({ ...request, custom_api_key: '' });
+
+    expect(sentBody()).not.toHaveProperty('custom_api_key');
+  });
+
+  it("throws the server's error detail", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ detail: 'Image is larger than 10 MB.' }, { status: 413 })
+    );
+
+    await expect(recognizeImage(request)).rejects.toThrow('Image is larger than 10 MB.');
+  });
+
+  it('throws the status code when the error body is not JSON', async () => {
+    fetchMock.mockResolvedValue(brokenResponse(502));
+
+    await expect(recognizeImage(request)).rejects.toThrow('Server error: 502');
   });
 });
