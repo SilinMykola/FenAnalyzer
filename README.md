@@ -293,6 +293,31 @@ FenAnalyzer/
 
 ---
 
+## 🧪 Tests
+
+**Frontend** — [Vitest](https://vitest.dev/) with React Testing Library in a jsdom browser environment.
+Test files sit next to the code they cover (`App.test.jsx`, `components/*.test.jsx`, ...).
+The drag-and-drop board, the backend API and Web Audio are replaced with stubs.
+
+```bash
+cd frontend
+npm test              # run once
+npm run test:watch    # re-run on every file change
+```
+
+**Backend** — pytest, in `tests/`. Stockfish and the Gemini API are faked, so no engine,
+network or API key is needed; one extra test runs the real Stockfish when it is installed.
+
+```bash
+uv run --no-project --with-requirements backend/requirements-dev.txt python -m pytest
+```
+
+Known bugs are pinned by tests that are expected to fail (`it.fails` in Vitest,
+`@pytest.mark.xfail(strict=True)` in pytest). Once a bug is fixed, the run reports
+the unexpected pass, and the marker should be removed.
+
+---
+
 ## ⌨️ Keyboard Shortcuts
 
 | Key | Action |
