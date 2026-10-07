@@ -306,6 +306,7 @@ FenAnalyzer/
 ├── backend/
 │   ├── main.py               # FastAPI · Stockfish UCI · Gemini AI · Pydantic models
 │   ├── requirements.txt      # Python dependencies
+│   ├── requirements-dev.txt  # Test dependencies (pytest)
 │   └── .env.example          # Environment variable template
 ├── frontend/
 │   └── src/
@@ -327,6 +328,7 @@ FenAnalyzer/
 │       ├── App.jsx                 # Top-level state orchestrator
 │       ├── index.css               # Theme tokens (dark & light) & component styles
 │       └── main.jsx                # React DOM entry point
+├── tests/                          # Backend tests (pytest)
 ├── start.sh                        # One-command launcher (backend + frontend)
 ├── package.json                    # Root npm scripts
 └── README.md
