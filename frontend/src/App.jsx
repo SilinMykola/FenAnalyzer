@@ -5,7 +5,9 @@ import BoardView from './components/BoardView';
 import AnalysisPanel from './components/AnalysisPanel';
 import PgnViewer from './components/PgnViewer';
 import BoardEditor from './components/BoardEditor';
-import { analyzeFen, checkBackendHealth, getAiCommentary } from './api/chessApi';
+import ImageImport from './components/ImageImport';
+import { analyzeFen, checkBackendHealth, getAiCommentary, recognizeImage } from './api/chessApi';
+import { readImageAsBase64 } from './utils/imageFile';
 import { playMoveSound } from './utils/sound';
 import useTheme from './hooks/useTheme';
 
@@ -52,6 +54,9 @@ export default function App() {
   const [customApiKey, setCustomApiKey] = useState(() => {
     return localStorage.getItem('gemini_api_key') || '';
   });
+
+  // Reading a position from an image: { status, error, fen, turnDetected, isValid }
+  const [imageRecognition, setImageRecognition] = useState({ status: 'idle' });
 
   // Check backend health on initial load
   useEffect(() => {
@@ -162,6 +167,7 @@ export default function App() {
     setPgnHeaders({});
     setCurrentMoveIndex(-1);
     pgnFensRef.current = [DEFAULT_FEN];
+    setImageRecognition({ status: 'idle' });
     setAiCommentary(null);
     setAiError(null);
     setError(null);
@@ -303,6 +309,56 @@ export default function App() {
     }
   };
 
+  // Reads the position in an image with Gemini, puts it on the board and,
+  // when it is legal, analyzes it.
+  const handleImageSelected = async (file) => {
+    setImageRecognition({ status: 'recognizing' });
+    try {
+      const image_base64 = await readImageAsBase64(file);
+      const res = await recognizeImage({
+        image_base64,
+        mime_type: file.type,
+        custom_api_key: customApiKey,
+      });
+      if (!res.success) {
+        setImageRecognition({
+          status: 'error',
+          error: res.error || 'Could not read the position from the image',
+        });
+        return;
+      }
+
+      setVariationPreview(null);
+      setError(null);
+      try {
+        gameRef.current.load(res.fen);
+      } catch {
+        // chess.js refuses an illegal position; the board stays locked until it is fixed.
+      }
+      showPosition(res.fen);
+      setImageRecognition({
+        status: 'done',
+        fen: res.fen,
+        turnDetected: res.turn_detected,
+        isValid: res.is_valid,
+      });
+
+      if (res.is_valid) {
+        triggerAnalysis(res.fen);
+      } else {
+        // Stockfish would reject it; drop the analysis of the previous position.
+        setAnalysis(null);
+        setAiCommentary(null);
+        setAiError(null);
+      }
+    } catch (err) {
+      setImageRecognition({
+        status: 'error',
+        error: err.message || 'Could not read the position from the image',
+      });
+    }
+  };
+
   const handleSaveCustomApiKey = (key) => {
     setCustomApiKey(key);
     if (key) {
@@ -333,6 +389,9 @@ export default function App() {
 
   const bestMove = analysis?.lines?.[0]?.move_uci || null;
   const isGameOver = analysis?.is_checkmate || analysis?.is_stalemate || false;
+  // An illegal position read from an image is shown, but cannot be played on.
+  const isIllegalImagePosition =
+    imageRecognition.status === 'done' && !imageRecognition.isValid && imageRecognition.fen === fen;
 
   return (
     <div className="app-container">
@@ -434,16 +493,23 @@ export default function App() {
             {/* Top Control Section: FEN or PGN based on activeTab */}
             <section className="input-section">
               {activeTab === 'fen' ? (
-                <FenInput
-                  fen={fenInput}
-                  onFenChange={handleFenChange}
-                  depth={depth}
-                  onDepthChange={setDepth}
-                  multipv={multipv}
-                  onMultipvChange={setMultipv}
-                  onAnalyze={() => triggerAnalysis(fen)}
-                  loading={loading}
-                />
+                <>
+                  <FenInput
+                    fen={fenInput}
+                    onFenChange={handleFenChange}
+                    depth={depth}
+                    onDepthChange={setDepth}
+                    multipv={multipv}
+                    onMultipvChange={setMultipv}
+                    onAnalyze={() => triggerAnalysis(fen)}
+                    loading={loading}
+                  />
+                  <ImageImport
+                    onImage={handleImageSelected}
+                    recognition={imageRecognition}
+                    onEditInEditor={() => setActiveTab('editor')}
+                  />
+                </>
               ) : (
                 <PgnViewer
                   pgnText={pgnText}
@@ -530,7 +596,7 @@ export default function App() {
                   turn={analysis?.turn}
                   onPieceDrop={handlePieceDrop}
                   onPlayBestMove={handlePlayBestMove}
-                  isGameOver={isGameOver || Boolean(variationPreview)}
+                  isGameOver={isGameOver || Boolean(variationPreview) || isIllegalImagePosition}
                 />
               </div>
 

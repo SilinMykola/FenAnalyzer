@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
-import { analyzeFen, checkBackendHealth, getAiCommentary } from './api/chessApi';
+import { analyzeFen, checkBackendHealth, getAiCommentary, recognizeImage } from './api/chessApi';
 import { chessboardProps } from './test/mockChessboard';
 
 // App is tested together with its real child components. Only the edges are
@@ -499,6 +499,136 @@ describe('App Grandmaster commentary', () => {
     await user.click(screen.getByRole('button', { name: 'Clear' }));
 
     expect(localStorage.getItem('gemini_api_key')).toBeNull();
+  });
+});
+
+describe('App position from an image', () => {
+  const RECOGNIZED = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 1';
+  const MISSING_KING = '8/8/8/8/8/8/8/4K3 w - - 0 1';
+  const screenshot = () => new File(['png bytes'], 'board.png', { type: 'image/png' });
+
+  function recognized(overrides = {}) {
+    return { success: true, fen: RECOGNIZED, turn_detected: false, is_valid: true, ...overrides };
+  }
+
+  async function uploadScreenshot(user) {
+    await user.upload(screen.getByLabelText('Upload image file'), screenshot());
+  }
+
+  it('puts the recognized position on the board and analyzes it', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockResolvedValue(recognized());
+    await renderApp();
+
+    await uploadScreenshot(user);
+
+    expect(await screen.findByText(/Position recognized/)).toBeInTheDocument();
+    expect(recognizeImage).toHaveBeenCalledWith({
+      image_base64: btoa('png bytes'),
+      mime_type: 'image/png',
+      custom_api_key: '',
+    });
+    expect(chessboardProps().position).toBe(RECOGNIZED);
+    expect(screen.getByLabelText('FEN Position')).toHaveValue(RECOGNIZED);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(RECOGNIZED));
+  });
+
+  it('reads an image pasted with Ctrl+V / ⌘V', async () => {
+    vi.mocked(recognizeImage).mockResolvedValue(recognized());
+    await renderApp();
+
+    fireEvent.paste(window, { clipboardData: { files: [screenshot()] } });
+
+    await waitFor(() => expect(chessboardProps().position).toBe(RECOGNIZED));
+  });
+
+  it("sends the user's Gemini key along", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem('gemini_api_key', 'my-key');
+    vi.mocked(recognizeImage).mockResolvedValue(recognized());
+    await renderApp();
+
+    await uploadScreenshot(user);
+
+    await waitFor(() =>
+      expect(recognizeImage).toHaveBeenCalledWith(expect.objectContaining({ custom_api_key: 'my-key' }))
+    );
+  });
+
+  it('lets the recognized position be played on', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockResolvedValue(recognized());
+    await renderApp();
+    await uploadScreenshot(user);
+    await screen.findByText(/Position recognized/);
+
+    let accepted;
+    act(() => {
+      accepted = chessboardProps().onPieceDrop('f1', 'c4', 'wB');
+    });
+
+    expect(accepted).toBe(true);
+  });
+
+  it('shows an illegal position without analyzing it and locks the board', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockResolvedValue(recognized({ fen: MISSING_KING, is_valid: false }));
+    await renderApp();
+    const callsBefore = analyzeFen.mock.calls.length;
+
+    await uploadScreenshot(user);
+
+    expect(await screen.findByText(/recognized position is not legal/)).toBeInTheDocument();
+    expect(chessboardProps().position).toBe(MISSING_KING);
+    expect(chessboardProps().arePiecesDraggable).toBe(false);
+    expect(analyzeFen).toHaveBeenCalledTimes(callsBefore);
+    // The analysis of the previous position is gone.
+    expect(screen.getByText('Ready for Engine Evaluation')).toBeInTheDocument();
+  });
+
+  it('opens the recognized position in the board editor for fixing', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockResolvedValue(recognized({ fen: MISSING_KING, is_valid: false }));
+    await renderApp();
+    await uploadScreenshot(user);
+
+    await user.click(await screen.findByRole('button', { name: /Fix in Board Editor/ }));
+
+    expect(screen.getByText('🧩 Chess Board Editor')).toBeInTheDocument();
+    expect(screen.getByRole('textbox')).toHaveValue(MISSING_KING);
+  });
+
+  it('shows why an image could not be read and keeps the board as it was', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockResolvedValue({ success: false, error: 'No chess board was found in the image.' });
+    await renderApp();
+
+    await uploadScreenshot(user);
+
+    expect(await screen.findByText('⚠️ No chess board was found in the image.')).toBeInTheDocument();
+    expect(chessboardProps().position).toBe(START_FEN);
+  });
+
+  it('shows a request failure', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockRejectedValue(new Error('Image is larger than 10 MB.'));
+    await renderApp();
+
+    await uploadScreenshot(user);
+
+    expect(await screen.findByText('⚠️ Image is larger than 10 MB.')).toBeInTheDocument();
+  });
+
+  it('forgets the recognition on Reset Board', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockResolvedValue(recognized());
+    await renderApp();
+    await uploadScreenshot(user);
+    await screen.findByText(/Position recognized/);
+
+    await user.click(screen.getByRole('button', { name: /Reset Board/ }));
+
+    expect(screen.queryByText(/Position recognized/)).not.toBeInTheDocument();
   });
 });
 
