@@ -7,12 +7,14 @@ import PgnViewer from './components/PgnViewer';
 import BoardEditor from './components/BoardEditor';
 import { analyzeFen, checkBackendHealth, getAiCommentary } from './api/chessApi';
 import { playMoveSound } from './utils/sound';
+import useTheme from './hooks/useTheme';
 
 const DEFAULT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 export default function App() {
   // Mode: 'fen' or 'pgn'
   const [activeTab, setActiveTab] = useState('fen');
+  const { theme, toggleTheme } = useTheme();
 
   // Internal chess.js instance for rules, move validation, and PGN parsing
   const gameRef = useRef(new Chess());
@@ -390,6 +392,16 @@ export default function App() {
                 : 'Connecting...'}
             </span>
           </div>
+
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
         </div>
       </header>
 

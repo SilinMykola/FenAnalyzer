@@ -12,7 +12,7 @@
 
 **A full-stack chess analysis web app powered by Stockfish 16 and Google Gemini AI.**  
 Load any FEN or PGN, explore engine variations interactively, build custom positions,
-and get natural language grandmaster coaching — all in a modern dark-mode UI.
+and get natural language grandmaster coaching — all in a modern UI with dark and light themes.
 
 </div>
 
@@ -45,14 +45,21 @@ and get natural language grandmaster coaching — all in a modern dark-mode UI.
 
 ### 🧩 Board Editor
 - Dedicated **Board Editor tab** for building any custom chess position from scratch
-- **Piece palette** — click to select White ♔♕♖♗♘♙ or Black ♚♛♜♝♞♟ pieces, then place them on any square
-- **Eraser tool** — click squares to remove individual pieces
+- **Piece palette** — click to select White ♔♕♖♗♘♙ or Black ♚♛♜♝♞♟ pieces, then place them on any square; large buttons with the colour label and all tools on a single row
+- **Build from an empty board** — clear the board and place pieces one by one; placing a king moves that side's existing king, so each side always has at most one
+- **Eraser tool** — available in both palettes; click squares to remove individual pieces (a click with no tool selected removes a piece too)
 - **Drag & drop** — rearrange existing pieces freely on the board
-- **Castling rights toggles** — set White/Black kingside and queenside castling availability
+- **Flip Board** — turn the board over; the palettes swap with it so each colour stays next to its own side
+- **Castling rights toggles** — set White/Black kingside and queenside castling availability; a right is disabled while its king and rook are off their starting squares, so the FEN never claims an impossible castle
 - **Turn selector** — choose White or Black to move
-- **Live FEN output** — generated FEN updates in real-time as you edit; copy to clipboard with one click
-- **Position validation** — warns if kings are missing; "Analyze" button disabled until position is legal
+- **Live FEN output** — generated FEN updates in real-time as you edit; copy to clipboard with one click; type or paste a FEN into the box to load it onto the board
+- **Position validation** — tells you what to fix before analysis: missing kings, too many kings, pawns on the first or last rank, or the side not to move being in check; "Analyze" stays disabled until the position is legal
 - **Send to Stockfish** — instantly pass the custom position to the engine with one button
+
+### 🌗 Dark & Light Themes
+- **Theme toggle** (☀️ / 🌙) in the header next to the Stockfish status switches the whole site
+- The choice is remembered in the browser; on a first visit the theme follows the operating system setting
+- Built on CSS custom properties: every colour in `index.css` is a theme token, redefined under `[data-theme='light']`
 
 ### 🎮 Interactive Board (FEN Mode)
 - **Drag-and-drop** piece movement with client-side legal move validation (`chess.js`)
@@ -271,10 +278,13 @@ FenAnalyzer/
 │       │   ├── FenInput.jsx        # FEN input · presets · depth & MultiPV controls
 │       │   ├── AnalysisPanel.jsx   # Evaluation · WDL bar · MultiPV lines · Gemini AI
 │       │   └── PgnViewer.jsx       # PGN import · move-by-move navigation · keyboard support
+│       ├── hooks/
+│       │   └── useTheme.js         # Dark/light theme state, persisted in localStorage
 │       ├── utils/
+│       │   ├── editorFen.js        # Board editor FEN parsing, building & validation
 │       │   └── sound.js            # Synthesized Web Audio sound effects
 │       ├── App.jsx                 # Top-level state orchestrator
-│       ├── index.css               # Dark-mode design system & component styles
+│       ├── index.css               # Theme tokens (dark & light) & component styles
 │       └── main.jsx                # React DOM entry point
 ├── start.sh                        # One-command launcher (backend + frontend)
 ├── package.json                    # Root npm scripts

@@ -6,6 +6,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FEN Chess Analyzer</title>
   <link rel="icon" type="image/png" href="/icon.png" />
+  <script>
+    // Apply the saved theme before the page paints; useTheme.js keeps it in sync.
+    try {
+      var saved = localStorage.getItem('theme');
+      var theme = saved === 'light' || saved === 'dark'
+        ? saved
+        : matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      document.documentElement.dataset.theme = theme;
+    } catch (e) {}
+  </script>
 </head>
 
 <body>

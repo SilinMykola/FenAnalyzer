@@ -1,133 +1,130 @@
-import React, { useState, useEffect } from 'react';
-import { Chess } from 'chess.js';
+import React, { useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { playMoveSound } from '../utils/sound';
+import {
+  buildFen,
+  fenToPosition,
+  getPositionError,
+  isCastlingPossible,
+  parseFenMeta,
+} from '../utils/editorFen';
 
-const EMPTY_BOARD_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+const ALL_CASTLING = { K: true, Q: true, k: true, q: true };
 
 const WHITE_PIECES = [
-  { code: 'K', type: 'k', color: 'w', symbol: '♔', label: 'King' },
-  { code: 'Q', type: 'q', color: 'w', symbol: '♕', label: 'Queen' },
-  { code: 'R', type: 'r', color: 'w', symbol: '♖', label: 'Rook' },
-  { code: 'B', type: 'b', color: 'w', symbol: '♗', label: 'Bishop' },
-  { code: 'N', type: 'n', color: 'w', symbol: '♘', label: 'Knight' },
-  { code: 'P', type: 'p', color: 'w', symbol: '♙', label: 'Pawn' },
+  { code: 'wK', symbol: '♔', label: 'King' },
+  { code: 'wQ', symbol: '♕', label: 'Queen' },
+  { code: 'wR', symbol: '♖', label: 'Rook' },
+  { code: 'wB', symbol: '♗', label: 'Bishop' },
+  { code: 'wN', symbol: '♘', label: 'Knight' },
+  { code: 'wP', symbol: '♙', label: 'Pawn' },
 ];
 
 const BLACK_PIECES = [
-  { code: 'k', type: 'k', color: 'b', symbol: '♚', label: 'King' },
-  { code: 'q', type: 'q', color: 'b', symbol: '♛', label: 'Queen' },
-  { code: 'r', type: 'r', color: 'b', symbol: '♜', label: 'Rook' },
-  { code: 'b', type: 'b', color: 'b', symbol: '♝', label: 'Bishop' },
-  { code: 'n', type: 'n', color: 'b', symbol: '♞', label: 'Knight' },
-  { code: 'p', type: 'p', color: 'b', symbol: '♟', label: 'Pawn' },
+  { code: 'bK', symbol: '♚', label: 'King' },
+  { code: 'bQ', symbol: '♛', label: 'Queen' },
+  { code: 'bR', symbol: '♜', label: 'Rook' },
+  { code: 'bB', symbol: '♝', label: 'Bishop' },
+  { code: 'bN', symbol: '♞', label: 'Knight' },
+  { code: 'bP', symbol: '♟', label: 'Pawn' },
 ];
 
-export default function BoardEditor({ onApplyFen, initialFen }) {
-  const [editorFen, setEditorFen] = useState(initialFen || STARTING_FEN);
-  const [selectedTool, setSelectedTool] = useState(null); // piece object or 'trash' or null
-  const [turn, setTurn] = useState('w');
-  const [castling, setCastling] = useState({ K: true, Q: true, k: true, q: true });
-  const [copied, setCopied] = useState(false);
-
-  // Sync turn and castling rights from editorFen
-  useEffect(() => {
-    try {
-      const parts = editorFen.split(' ');
-      if (parts[1]) setTurn(parts[1]);
-      if (parts[2]) {
-        const c = parts[2];
-        setCastling({
-          K: c.includes('K'),
-          Q: c.includes('Q'),
-          k: c.includes('k'),
-          q: c.includes('q'),
-        });
-      }
-    } catch (e) {
-      // Ignore parse errors on partial FEN
+// Places a piece on a square. A side has only one king, so placing a king
+// moves the existing one instead of adding a second.
+function placePiece(position, square, piece) {
+  const next = { ...position };
+  if (piece[1] === 'K') {
+    for (const [sq, p] of Object.entries(next)) {
+      if (p === piece) delete next[sq];
     }
-  }, []);
+  }
+  next[square] = piece;
+  return next;
+}
 
-  const updateFenWithMeta = (boardPart, newTurn = turn, newCastling = castling) => {
-    let castlingStr = '';
-    if (newCastling.K) castlingStr += 'K';
-    if (newCastling.Q) castlingStr += 'Q';
-    if (newCastling.k) castlingStr += 'k';
-    if (newCastling.q) castlingStr += 'q';
-    if (!castlingStr) castlingStr = '-';
+function initialPosition(fen) {
+  try {
+    return fenToPosition(fen);
+  } catch {
+    return fenToPosition(STARTING_FEN);
+  }
+}
 
-    const fullFen = `${boardPart} ${newTurn} ${castlingStr} - 0 1`;
-    setEditorFen(fullFen);
-  };
+export default function BoardEditor({ onApplyFen, initialFen }) {
+  // The editor's source of truth: pieces, side to move and castling wishes.
+  // The FEN is derived from these on every render, never stored separately.
+  const [position, setPosition] = useState(() => initialPosition(initialFen || STARTING_FEN));
+  const [turn, setTurn] = useState(() => parseFenMeta(initialFen || STARTING_FEN).turn);
+  const [castling, setCastling] = useState(() => parseFenMeta(initialFen || STARTING_FEN).castling);
+  const [selectedTool, setSelectedTool] = useState(null); // piece code ('wK'), 'trash' or null
+  // Text the user is typing into the FEN box; null when they are not editing it.
+  const [fenDraft, setFenDraft] = useState(null);
+  const [copied, setCopied] = useState(false);
+  // Which side is shown at the bottom of the board.
+  const [orientation, setOrientation] = useState('white');
+
+  const fen = buildFen(position, turn, castling);
+  const positionError = getPositionError(fen);
 
   const handleSquareClick = (square) => {
-    try {
-      const game = new Chess(editorFen);
-      if (selectedTool === 'trash') {
-        game.remove(square);
-      } else if (selectedTool) {
-        game.put({ type: selectedTool.type, color: selectedTool.color }, square);
-      } else {
-        // Toggle remove if clicked without a tool
-        const existing = game.get(square);
-        if (existing) {
-          game.remove(square);
-        }
-      }
-      playMoveSound(false);
-      const boardPart = game.fen().split(' ')[0];
-      updateFenWithMeta(boardPart);
-    } catch (err) {
-      console.warn('Square click edit failed:', err);
+    if (selectedTool && selectedTool !== 'trash') {
+      setPosition((prev) => placePiece(prev, square, selectedTool));
+    } else if (position[square]) {
+      // The eraser, or a click with no tool selected, removes the piece.
+      setPosition((prev) => {
+        const next = { ...prev };
+        delete next[square];
+        return next;
+      });
+    } else {
+      return;
     }
+    playMoveSound(false);
   };
 
-  const handlePieceDrop = (sourceSquare, targetSquare) => {
-    try {
-      const game = new Chess(editorFen);
-      const piece = game.get(sourceSquare);
-      if (!piece) return false;
-      game.remove(sourceSquare);
-      game.put(piece, targetSquare);
-      playMoveSound(false);
-      const boardPart = game.fen().split(' ')[0];
-      updateFenWithMeta(boardPart);
-      return true;
-    } catch (err) {
-      return false;
-    }
+  const handlePieceDrop = (sourceSquare, targetSquare, piece) => {
+    setPosition((prev) => {
+      const next = { ...prev };
+      delete next[sourceSquare];
+      return placePiece(next, targetSquare, piece);
+    });
+    playMoveSound(false);
+    return true;
   };
 
   const handleClearBoard = () => {
-    setEditorFen(EMPTY_BOARD_FEN);
+    setPosition({});
     playMoveSound(false);
   };
 
   const handleResetStarting = () => {
-    setEditorFen(STARTING_FEN);
+    setPosition(fenToPosition(STARTING_FEN));
     setTurn('w');
-    setCastling({ K: true, Q: true, k: true, q: true });
+    setCastling(ALL_CASTLING);
     playMoveSound(false);
   };
 
-  const handleTurnChange = (newTurn) => {
-    setTurn(newTurn);
-    const boardPart = editorFen.split(' ')[0];
-    updateFenWithMeta(boardPart, newTurn, castling);
+  const handleCastlingToggle = (flag) => {
+    setCastling((prev) => ({ ...prev, [flag]: !prev[flag] }));
   };
 
-  const handleCastlingToggle = (flag) => {
-    const updated = { ...castling, [flag]: !castling[flag] };
-    setCastling(updated);
-    const boardPart = editorFen.split(' ')[0];
-    updateFenWithMeta(boardPart, turn, updated);
+  const handleFenInput = (text) => {
+    setFenDraft(text);
+    try {
+      const parsed = fenToPosition(text);
+      const meta = parseFenMeta(text);
+      setPosition(parsed);
+      setTurn(meta.turn);
+      setCastling(meta.castling);
+    } catch {
+      // Half-typed FEN: keep showing the draft and leave the board as it is.
+    }
   };
 
   const handleCopyFen = async () => {
     try {
-      await navigator.clipboard.writeText(editorFen);
+      await navigator.clipboard.writeText(fen);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (e) {
@@ -135,10 +132,56 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
     }
   };
 
-  // Validation
-  const hasWhiteKing = editorFen.split(' ')[0].includes('K');
-  const hasBlackKing = editorFen.split(' ')[0].includes('k');
-  const isValid = hasWhiteKing && hasBlackKing;
+  const handleFlipBoard = () => {
+    setOrientation((prev) => (prev === 'white' ? 'black' : 'white'));
+  };
+
+  // A palette sits next to its own side of the board, so flipping the board
+  // swaps the palettes too. Both palettes carry the eraser, so it is always
+  // within reach; selecting it in one highlights it in both.
+  const renderPalette = (color) => {
+    const pieces = color === 'white' ? WHITE_PIECES : BLACK_PIECES;
+    const colorName = color === 'white' ? 'White' : 'Black';
+    return (
+      <div className={`piece-palette ${color}-palette`}>
+        <span className="palette-label">{colorName}</span>
+        <div className="palette-items">
+          {pieces.map((p) => {
+            const isSelected = selectedTool === p.code;
+            return (
+              <button
+                key={p.code}
+                type="button"
+                className={`palette-btn ${isSelected ? 'active' : ''}`}
+                onClick={() => setSelectedTool(isSelected ? null : p.code)}
+                title={`Select ${colorName} ${p.label}`}
+              >
+                <span className="piece-symbol">{p.symbol}</span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className={`palette-btn btn-trash ${selectedTool === 'trash' ? 'active' : ''}`}
+            onClick={() => setSelectedTool(selectedTool === 'trash' ? null : 'trash')}
+            title="Eraser: click squares to remove pieces"
+          >
+            🗑️
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const bottomColor = orientation;
+  const topColor = orientation === 'white' ? 'black' : 'white';
+
+  const castlingOptions = [
+    { flag: 'K', label: 'White O-O (Kingside)' },
+    { flag: 'Q', label: 'White O-O-O (Queenside)' },
+    { flag: 'k', label: 'Black O-O (Kingside)' },
+    { flag: 'q', label: 'Black O-O-O (Queenside)' },
+  ];
 
   return (
     <div className="card board-editor-card">
@@ -153,6 +196,14 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
           <button type="button" className="preset-btn btn-danger-text" onClick={handleClearBoard}>
             🧹 Clear Board
           </button>
+          <button
+            type="button"
+            className="preset-btn"
+            onClick={handleFlipBoard}
+            title="Flip the board and swap the piece palettes"
+          >
+            🔃 Flip Board
+          </button>
           <button type="button" className="preset-btn" onClick={handleResetStarting}>
             🔄 Starting Position
           </button>
@@ -162,31 +213,13 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
       <div className="editor-layout">
         {/* Board and Piece Palettes Column */}
         <div className="editor-board-col">
-          {/* Black Piece Palette (Top) */}
-          <div className="piece-palette black-palette">
-            <span className="palette-label">Black Pieces:</span>
-            <div className="palette-items">
-              {BLACK_PIECES.map((p) => {
-                const isSelected = selectedTool?.code === p.code;
-                return (
-                  <button
-                    key={p.code}
-                    type="button"
-                    className={`palette-btn ${isSelected ? 'active' : ''}`}
-                    onClick={() => setSelectedTool(isSelected ? null : p)}
-                    title={`Select Black ${p.label}`}
-                  >
-                    <span className="piece-symbol">{p.symbol}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          {renderPalette(topColor)}
 
           {/* Interactive Chessboard */}
           <div className="editor-board-wrapper">
             <Chessboard
-              position={editorFen}
+              position={position}
+              boardOrientation={orientation}
               onSquareClick={handleSquareClick}
               onPieceDrop={handlePieceDrop}
               arePiecesDraggable={true}
@@ -200,34 +233,7 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
             />
           </div>
 
-          {/* White Piece Palette & Eraser (Bottom) */}
-          <div className="piece-palette white-palette">
-            <span className="palette-label">White Pieces:</span>
-            <div className="palette-items">
-              {WHITE_PIECES.map((p) => {
-                const isSelected = selectedTool?.code === p.code;
-                return (
-                  <button
-                    key={p.code}
-                    type="button"
-                    className={`palette-btn ${isSelected ? 'active' : ''}`}
-                    onClick={() => setSelectedTool(isSelected ? null : p)}
-                    title={`Select White ${p.label}`}
-                  >
-                    <span className="piece-symbol">{p.symbol}</span>
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                className={`palette-btn btn-trash ${selectedTool === 'trash' ? 'active' : ''}`}
-                onClick={() => setSelectedTool(selectedTool === 'trash' ? null : 'trash')}
-                title="Eraser: click squares to remove pieces"
-              >
-                🗑️
-              </button>
-            </div>
-          </div>
+          {renderPalette(bottomColor)}
         </div>
 
         {/* Settings, FEN Output and Actions Column */}
@@ -239,14 +245,14 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
               <button
                 type="button"
                 className={`turn-btn ${turn === 'w' ? 'active' : ''}`}
-                onClick={() => handleTurnChange('w')}
+                onClick={() => setTurn('w')}
               >
                 ⚪ White to Move
               </button>
               <button
                 type="button"
                 className={`turn-btn ${turn === 'b' ? 'active' : ''}`}
-                onClick={() => handleTurnChange('b')}
+                onClick={() => setTurn('b')}
               >
                 ⚫ Black to Move
               </button>
@@ -257,38 +263,24 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
           <div className="editor-card-section">
             <span className="section-heading">Castling Availability</span>
             <div className="castling-checkboxes">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={castling.K}
-                  onChange={() => handleCastlingToggle('K')}
-                />
-                White O-O (Kingside)
-              </label>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={castling.Q}
-                  onChange={() => handleCastlingToggle('Q')}
-                />
-                White O-O-O (Queenside)
-              </label>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={castling.k}
-                  onChange={() => handleCastlingToggle('k')}
-                />
-                Black O-O (Kingside)
-              </label>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={castling.q}
-                  onChange={() => handleCastlingToggle('q')}
-                />
-                Black O-O-O (Queenside)
-              </label>
+              {castlingOptions.map(({ flag, label }) => {
+                const possible = isCastlingPossible(position, flag);
+                return (
+                  <label
+                    key={flag}
+                    className="checkbox-label"
+                    title={possible ? undefined : 'King and rook must be on their starting squares'}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={possible && castling[flag]}
+                      disabled={!possible}
+                      onChange={() => handleCastlingToggle(flag)}
+                    />
+                    {label}
+                  </label>
+                );
+              })}
             </div>
           </div>
 
@@ -299,8 +291,9 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
               <textarea
                 className="fen-result-textarea"
                 rows="3"
-                value={editorFen}
-                onChange={(e) => setEditorFen(e.target.value)}
+                value={fenDraft ?? fen}
+                onChange={(e) => handleFenInput(e.target.value)}
+                onBlur={() => setFenDraft(null)}
               />
               <div className="fen-result-actions">
                 <button
@@ -315,10 +308,9 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
             </div>
 
             {/* Validation warning */}
-            {!isValid && (
+            {positionError && (
               <div className="editor-warn-box">
-                ⚠️ Position must include both a <strong>White King (♔)</strong> and a{' '}
-                <strong>Black King (♚)</strong> to be analyzed by the engine.
+                ⚠️ To analyze this position, <strong>{positionError}</strong>.
               </div>
             )}
           </div>
@@ -327,8 +319,8 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
           <button
             type="button"
             className="btn btn-primary btn-analyze-editor"
-            disabled={!isValid}
-            onClick={() => onApplyFen(editorFen)}
+            disabled={Boolean(positionError)}
+            onClick={() => onApplyFen(fen)}
           >
             ⚡ Analyze this Setup with Stockfish
           </button>
