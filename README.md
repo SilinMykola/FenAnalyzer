@@ -11,8 +11,8 @@
 ![Gemini](https://img.shields.io/badge/AI-Gemini%203.8%20Flash-4285F4?logo=google&logoColor=white)
 
 **A full-stack chess analysis web app powered by Stockfish 16 and Google Gemini AI.**  
-Load any FEN or PGN, explore engine variations interactively, build custom positions,
-and get natural language grandmaster coaching — all in a modern UI with dark and light themes.
+Load any FEN or PGN — or just a screenshot of a board — explore engine variations
+interactively, build custom positions, and get natural language grandmaster coaching — all in a modern UI with dark and light themes.
 
 </div>
 
@@ -42,6 +42,16 @@ and get natural language grandmaster coaching — all in a modern UI with dark a
 - Navigate moves with **⏮ ◀ ▶ ⏭ buttons** or **keyboard arrow keys** (`←` / `→`)
 - Real-time Stockfish evaluation and best-move arrows on every step
 - Clear / Reset controls to instantly load a new game
+
+### 📷 Position from Image
+- **Analyze a picture of a board** — a screenshot from Chess.com or Lichess, a book diagram or a photo
+- Three ways in, right under the FEN input: **paste with `Ctrl+V` / `⌘V`** anywhere on the FEN tab, the **Paste Image** button, or **Upload File** (drag & drop works too)
+- Google Gemini reads the pieces; the backend checks the result with python-chess, so a garbled answer is never put on the board
+- The recognized position appears on the board and in the FEN box and is **analyzed by Stockfish straight away**
+- **Side to move** is taken from the image when it shows it (a caption, a highlighted last move); otherwise White is assumed — or Black, when only that is legal — and the UI says it is a guess
+- **Castling rights** are granted wherever king and rook stand on their home squares
+- A misread piece can make the position illegal: it is then shown on a locked board, without analysis, with a **Fix in Board Editor** button
+- PNG, JPEG or WebP up to 10 MB; needs a Gemini API key (the same one as the commentary)
 
 ### 🧩 Board Editor
 - Dedicated **Board Editor tab** for building any custom chess position from scratch
@@ -82,6 +92,7 @@ and get natural language grandmaster coaching — all in a modern UI with dark a
                          │  HTTP / JSON (Vite proxy)
                          │  POST /api/analyze
                          │  POST /api/ai-commentary
+                         │  POST /api/recognize-image
                          │  GET  /api/health
                          ▼
 ┌─────────────────────────────────────────────────┐
@@ -255,6 +266,34 @@ Generates grandmaster coaching commentary via Google Gemini.
 }
 ```
 
+### `POST /api/recognize-image`
+Reads a chess position from an image via Google Gemini and returns it as FEN.
+
+**Request:**
+```json
+{
+  "image_base64": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "mime_type": "image/png"
+}
+```
+`image_base64` may also be a whole `data:image/png;base64,...` URL. Accepted types: PNG, JPEG, WebP
+(and HEIC/HEIF); at most 10 MB. A bad image is rejected with `400`, `413` or `415`.
+
+**Response:**
+```json
+{
+  "success": true,
+  "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 1",
+  "turn_detected": false,
+  "is_valid": true,
+  "model": "gemini-3.8-flash",
+  "error": null
+}
+```
+`turn_detected` tells whether the side to move came from the image or was assumed.
+`is_valid: false` means the position is illegal (e.g. a missing king) and Stockfish would reject it.
+When nothing could be read, `success` is `false` and `error` says why.
+
 ### `GET /api/health`
 Returns engine availability and API key configuration status.
 
@@ -276,12 +315,14 @@ FenAnalyzer/
 │       │   ├── BoardView.jsx       # Interactive board · drag-drop · best-move arrow
 │       │   ├── BoardEditor.jsx     # Custom position builder · piece palette · FEN export
 │       │   ├── FenInput.jsx        # FEN input · presets · depth & MultiPV controls
+│       │   ├── ImageImport.jsx     # Paste / upload / drop a board image for recognition
 │       │   ├── AnalysisPanel.jsx   # Evaluation · WDL bar · MultiPV lines · Gemini AI
 │       │   └── PgnViewer.jsx       # PGN import · move-by-move navigation · keyboard support
 │       ├── hooks/
 │       │   └── useTheme.js         # Dark/light theme state, persisted in localStorage
 │       ├── utils/
 │       │   ├── editorFen.js        # Board editor FEN parsing, building & validation
+│       │   ├── imageFile.js        # Image type/size checks and base64 reading
 │       │   └── sound.js            # Synthesized Web Audio sound effects
 │       ├── App.jsx                 # Top-level state orchestrator
 │       ├── index.css               # Theme tokens (dark & light) & component styles
