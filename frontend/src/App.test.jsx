@@ -166,6 +166,46 @@ describe('App FEN tab', () => {
     expect(lastAnalyzedFen()).toBe('8/8/5k2/R7/4P3/8/5K2/8 w - - 0 1');
   });
 
+  it('clears the FEN box on reset while the board goes back to the start', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: 'Endgame (Rook + Pawn)' }));
+    await user.click(screen.getByRole('button', { name: /Analyze with Stockfish/ }));
+
+    await user.click(screen.getByRole('button', { name: /Reset Board/ }));
+
+    expect(screen.getByLabelText('FEN Position')).toHaveValue('');
+    expect(chessboardProps().position).toBe(START_FEN);
+    // Nothing to analyze until a new FEN is entered.
+    expect(screen.getByRole('button', { name: /Analyze with Stockfish/ })).toBeDisabled();
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(START_FEN));
+  });
+
+  it('analyzes a FEN typed in after a reset', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: /Reset Board/ }));
+
+    const fen = '4k3/8/8/8/8/8/8/R3K3 w - - 0 1';
+    await user.type(screen.getByLabelText('FEN Position'), fen);
+    await user.click(screen.getByRole('button', { name: /Analyze with Stockfish/ }));
+
+    expect(chessboardProps().position).toBe(fen);
+    expect(lastAnalyzedFen()).toBe(fen);
+  });
+
+  it('fills the FEN box again when a move is played after a reset', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: /Reset Board/ }));
+
+    act(() => {
+      chessboardProps().onPieceDrop('e2', 'e4', 'wP');
+    });
+
+    expect(screen.getByLabelText('FEN Position')).toHaveValue(AFTER_E4);
+  });
+
   it('analyzes with the depth chosen on the slider', async () => {
     await renderApp();
 

@@ -18,7 +18,17 @@ export default function App() {
 
   // Internal chess.js instance for rules, move validation, and PGN parsing
   const gameRef = useRef(new Chess());
+  // The position on the board, and the text in the FEN box. They are the same
+  // except after a reset, which puts the starting position on the board but
+  // leaves the box empty for the next FEN.
   const [fen, setFen] = useState(DEFAULT_FEN);
+  const [fenInput, setFenInput] = useState(DEFAULT_FEN);
+
+  // Puts a position on the board and shows its FEN in the box.
+  const showPosition = (newFen) => {
+    setFen(newFen);
+    setFenInput(newFen);
+  };
 
   // Engine controls
   const [depth, setDepth] = useState(16);
@@ -86,7 +96,7 @@ export default function App() {
   // Handler for manual FEN update (e.g. typing or preset button)
   const handleFenChange = (newFen) => {
     setVariationPreview(null);
-    setFen(newFen);
+    showPosition(newFen);
     setError(null);
     try {
       gameRef.current.load(newFen);
@@ -135,7 +145,7 @@ export default function App() {
     if (!variationPreview) return;
     const targetFen = variationPreview.previewFen;
     gameRef.current.load(targetFen);
-    setFen(targetFen);
+    showPosition(targetFen);
     setVariationPreview(null);
     playMoveSound(false);
     triggerAnalysis(targetFen);
@@ -146,6 +156,7 @@ export default function App() {
     setVariationPreview(null);
     gameRef.current.load(DEFAULT_FEN);
     setFen(DEFAULT_FEN);
+    setFenInput('');
     setPgnText('');
     setPgnMoves([]);
     setPgnHeaders({});
@@ -172,7 +183,7 @@ export default function App() {
 
       playMoveSound(Boolean(move.captured));
       const newFen = gameRef.current.fen();
-      setFen(newFen);
+      showPosition(newFen);
 
       // Auto-trigger Stockfish re-analysis
       triggerAnalysis(newFen);
@@ -196,7 +207,7 @@ export default function App() {
       if (move) {
         playMoveSound(Boolean(move.captured));
         const newFen = gameRef.current.fen();
-        setFen(newFen);
+        showPosition(newFen);
         triggerAnalysis(newFen);
       }
     } catch (e) {
@@ -230,7 +241,7 @@ export default function App() {
       // Set board to final position of the game
       const finalFen = fens[fens.length - 1];
       gameRef.current.load(finalFen);
-      setFen(finalFen);
+      showPosition(finalFen);
       triggerAnalysis(finalFen);
       setError(null);
     } catch (err) {
@@ -244,7 +255,7 @@ export default function App() {
     setCurrentMoveIndex(index);
     const targetFen = pgnFensRef.current[index + 1] || DEFAULT_FEN;
     gameRef.current.load(targetFen);
-    setFen(targetFen);
+    showPosition(targetFen);
     playMoveSound(false);
     triggerAnalysis(targetFen);
   };
@@ -412,7 +423,7 @@ export default function App() {
             initialFen={fen}
             onApplyFen={(newFen) => {
               setVariationPreview(null);
-              setFen(newFen);
+              showPosition(newFen);
               setActiveTab('fen');
               playMoveSound(false);
               triggerAnalysis(newFen);
@@ -424,7 +435,7 @@ export default function App() {
             <section className="input-section">
               {activeTab === 'fen' ? (
                 <FenInput
-                  fen={fen}
+                  fen={fenInput}
                   onFenChange={handleFenChange}
                   depth={depth}
                   onDepthChange={setDepth}
