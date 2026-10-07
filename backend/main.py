@@ -1,5 +1,9 @@
 import asyncio
+import base64
+import binascii
+import json
 import os
+import re
 import shutil
 from typing import List, Optional
 
@@ -508,3 +512,166 @@ Instructions:
             error="Gemini returned no commentary for this position.",
         )
     return AiCommentaryResponse(success=True, commentary=text, model=model_name)
+
+
+# ── Position recognition from an image ─────────────────────────────────────────
+
+# Image types Gemini accepts. GIF is not among them.
+IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"}
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+RECOGNIZE_PROMPT = """You are given an image of a chess position: a screenshot of a digital board, a printed diagram or a photo.
+Read the position and answer with JSON only, in this exact shape:
+{"board": "<piece placement>", "turn": "w" | "b" | null}
+
+Rules:
+- "board" is the first field of a FEN: 8 ranks separated by "/", from rank 8 down to rank 1, each rank from file a to file h. Uppercase letters for White pieces (KQRBNP), lowercase for Black (kqrbnp), digits 1-8 for runs of empty squares.
+- If the board is shown from Black's side (rank 1 at the top, file h on the left), still write the placement from White's side. Use the coordinate labels on the board edges when they are visible.
+- "turn" is the side to move only when the image shows it, for example a "White to move" caption or a highlighted last move (then the other side is to move). Otherwise use null.
+- If there is no chess board in the image, answer {"board": null, "turn": null}."""
+
+
+class RecognizeImageRequest(BaseModel):
+    image_base64: str = Field(..., description="Image bytes as base64, with or without a data: URL prefix")
+    mime_type: str = Field(..., description="Image MIME type, e.g. image/png")
+    custom_api_key: Optional[str] = None
+
+
+class RecognizeImageResponse(BaseModel):
+    success: bool
+    fen: Optional[str] = None
+    # Whether the side to move was read from the image rather than guessed
+    turn_detected: bool = False
+    # Whether the position is legal, so it can be sent to Stockfish as is
+    is_valid: bool = False
+    model: Optional[str] = None
+    error: Optional[str] = None
+
+
+def decode_image(image_base64: str, mime_type: str) -> bytes:
+    """Checks the uploaded image and returns its bytes; raises HTTPException if unusable."""
+    if mime_type not in IMAGE_MIME_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported image type '{mime_type}'. Use PNG, JPEG or WebP.",
+        )
+    # Accept a whole data URL as produced by FileReader.readAsDataURL
+    data = re.sub(r"^data:[^,]*,", "", image_base64.strip())
+    try:
+        raw = base64.b64decode(data, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="Image data is not valid base64.")
+    if not raw:
+        raise HTTPException(status_code=400, detail="Image is empty.")
+    if len(raw) > MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image is larger than 10 MB.")
+    return raw
+
+
+def parse_recognition(text: str) -> dict:
+    """Reads Gemini's JSON answer, tolerating a ```json code fence around it."""
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
+    answer = json.loads(cleaned)
+    if not isinstance(answer, dict):
+        raise ValueError("answer is not a JSON object")
+    return answer
+
+
+def build_recognized_board(placement: str, turn: Optional[str]) -> tuple:
+    """Turns a recognized placement into a board; returns (board, turn_detected).
+
+    Castling rights are granted wherever king and rook stand on their home
+    squares, since an image cannot show whether they have moved. When the
+    image does not show the side to move, White is assumed unless only
+    Black to move gives a legal position (White's king already in check).
+    """
+    board = chess.Board(None)
+    board.set_board_fen(placement.strip())  # raises ValueError if malformed
+
+    board.set_castling_fen("KQkq")
+    board.castling_rights = board.clean_castling_rights()
+
+    if turn in ("w", "b"):
+        board.turn = chess.WHITE if turn == "w" else chess.BLACK
+        return board, True
+
+    board.turn = chess.WHITE
+    if not board.is_valid():
+        black_to_move = board.copy()
+        black_to_move.turn = chess.BLACK
+        if black_to_move.is_valid():
+            return black_to_move, False
+    return board, False
+
+
+@app.post("/api/recognize-image", response_model=RecognizeImageResponse)
+async def recognize_image(payload: RecognizeImageRequest):
+    """Reads a chess position from an image with Gemini and returns it as FEN."""
+    raw = decode_image(payload.image_base64, payload.mime_type)
+
+    api_key = get_gemini_key(payload.custom_api_key)
+    if not api_key:
+        return RecognizeImageResponse(success=False, error=GEMINI_KEY_MISSING)
+
+    body = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": RECOGNIZE_PROMPT},
+                    {
+                        "inline_data": {
+                            "mime_type": payload.mime_type,
+                            "data": base64.b64encode(raw).decode("ascii"),
+                        }
+                    },
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0,
+            "responseMimeType": "application/json",
+            "maxOutputTokens": 2000,
+        },
+    }
+
+    try:
+        # Reading an image takes Gemini longer than writing commentary
+        data, model_name = await call_gemini(api_key, body, timeout=60.0)
+    except GeminiError as e:
+        return RecognizeImageResponse(success=False, error=str(e))
+
+    text = first_candidate_text(data)
+    if not text:
+        return RecognizeImageResponse(
+            success=False, model=model_name, error="Gemini returned no answer for this image."
+        )
+
+    try:
+        answer = parse_recognition(text)
+    except ValueError:
+        return RecognizeImageResponse(
+            success=False, model=model_name, error="Could not understand Gemini's answer. Please try again."
+        )
+
+    placement = answer.get("board")
+    if not placement:
+        return RecognizeImageResponse(
+            success=False, model=model_name, error="No chess board was found in the image."
+        )
+
+    try:
+        board, turn_detected = build_recognized_board(str(placement), answer.get("turn"))
+    except ValueError:
+        return RecognizeImageResponse(
+            success=False,
+            model=model_name,
+            error="The board in the image could not be read reliably. Try a clearer or tighter crop.",
+        )
+
+    return RecognizeImageResponse(
+        success=True,
+        fen=board.fen(),
+        turn_detected=turn_detected,
+        is_valid=board.is_valid(),
+        model=model_name,
+    )
