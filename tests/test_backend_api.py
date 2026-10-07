@@ -23,13 +23,6 @@ STALEMATE = "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"
 client = TestClient(main.app)
 
 
-@pytest.fixture(autouse=True)
-def no_real_secrets(monkeypatch):
-    # main.py loads backend/.env on import; keep a real key out of the tests.
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GEMINI_MODEL", raising=False)
-
-
 def analyze(fen=START_FEN, **params):
     return client.post("/api/analyze", json={"fen": fen, **params})
 
@@ -321,47 +314,6 @@ COMMENTARY_REQUEST = {
 
 def gemini_reply(text="Take the centre."):
     return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": text}]}}]})
-
-
-@pytest.fixture
-def gemini(monkeypatch):
-    """Answers Gemini requests with the responses a test queues up.
-
-    Returns the list of requests sent, so tests can check what went out.
-    Retry pauses are skipped and recorded in `gemini.sleeps`.
-    """
-    requests = []
-    replies = []
-
-    def handler(request):
-        requests.append(request)
-        reply = replies.pop(0)
-        if isinstance(reply, Exception):
-            raise reply
-        return reply
-
-    real_client = httpx.AsyncClient
-    monkeypatch.setattr(
-        main.httpx,
-        "AsyncClient",
-        lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs),
-    )
-
-    sleeps = []
-
-    async def fake_sleep(seconds):
-        sleeps.append(seconds)
-
-    monkeypatch.setattr(main.asyncio, "sleep", fake_sleep)
-
-    class Gemini:
-        def reply(self, *responses):
-            replies.extend(responses)
-
-    g = Gemini()
-    g.requests = requests
-    g.sleeps = sleeps
-    return g
 
 
 def ask(**overrides):

@@ -1,6 +1,9 @@
 import chess
 import chess.engine
+import httpx
 import pytest
+
+from backend import main
 
 
 class FakeEngine:
@@ -71,3 +74,51 @@ def line(board, sans, score, **extra):
         pv.append(move)
         temp.push(move)
     return {"pv": pv, "score": score, **extra}
+
+
+@pytest.fixture(autouse=True)
+def no_real_secrets(monkeypatch):
+    # main.py loads backend/.env on import; keep a real key out of the tests.
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+
+
+@pytest.fixture
+def gemini(monkeypatch):
+    """Answers Gemini requests with the responses a test queues up.
+
+    Returns the list of requests sent, so tests can check what went out.
+    Retry pauses are skipped and recorded in `gemini.sleeps`.
+    """
+    requests = []
+    replies = []
+
+    def handler(request):
+        requests.append(request)
+        reply = replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        main.httpx,
+        "AsyncClient",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs),
+    )
+
+    sleeps = []
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(main.asyncio, "sleep", fake_sleep)
+
+    class Gemini:
+        def reply(self, *responses):
+            replies.extend(responses)
+
+    g = Gemini()
+    g.requests = requests
+    g.sleeps = sleeps
+    return g
