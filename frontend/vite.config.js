@@ -14,4 +14,9 @@ export default defineConfig({
       },
     },
   },
+  test: {
+    // jsdom gives tests a browser-like document to render components into
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+  },
 })
