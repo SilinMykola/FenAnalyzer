@@ -24,3 +24,9 @@ if (!window.matchMedia) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+
+// jsdom cannot make object URLs; ImageImport uses one for the image thumbnail.
+if (!URL.createObjectURL) {
+  URL.createObjectURL = () => 'blob:test-preview';
+  URL.revokeObjectURL = () => {};
+}
