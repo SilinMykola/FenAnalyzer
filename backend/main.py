@@ -392,16 +392,87 @@ class AiCommentaryResponse(BaseModel):
     error: Optional[str] = None
 
 
+class GeminiError(Exception):
+    """A Gemini request failed; the message is ready to show to the user."""
+
+
+def get_gemini_key(custom_api_key: Optional[str]) -> Optional[str]:
+    """The key from the UI wins over the server's own key; blank counts as none."""
+    api_key = custom_api_key or os.environ.get("GEMINI_API_KEY")
+    if not api_key or not api_key.strip():
+        return None
+    return api_key.strip()
+
+
+GEMINI_KEY_MISSING = (
+    "Gemini API Key is not configured. "
+    "Please add GEMINI_API_KEY to backend/.env or enter it in settings."
+)
+
+
+async def call_gemini(api_key: str, body: dict, timeout: float = 20.0) -> tuple:
+    """Sends a generateContent request and returns (response JSON, model name).
+
+    Retries on 503 (overload) and 429 (rate limit) with growing pauses.
+    Raises GeminiError when the request cannot be completed.
+    """
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+
+    # Retryable HTTP status codes: 503 = overload, 429 = rate limit
+    RETRYABLE = {503, 429}
+    MAX_RETRIES = 3
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            for attempt in range(1, MAX_RETRIES + 1):
+                resp = await client.post(url, json=body)
+
+                if resp.status_code == 200:
+                    return resp.json(), model_name
+
+                # Parse error message from JSON if available
+                err_detail = resp.text
+                try:
+                    err_json = resp.json()
+                    err_detail = err_json.get("error", {}).get("message", err_detail)
+                except Exception:
+                    pass
+
+                if resp.status_code in RETRYABLE and attempt < MAX_RETRIES:
+                    # Exponential backoff: 2s, 4s before next retry
+                    await asyncio.sleep(2 * attempt)
+                    continue
+
+                # Non-retryable error or exhausted retries
+                if resp.status_code in RETRYABLE:
+                    raise GeminiError(
+                        "Gemini servers are temporarily overloaded. "
+                        "Please wait a moment and try again. "
+                        f"(Tried {MAX_RETRIES} times)"
+                    )
+                raise GeminiError(f"Gemini API error ({resp.status_code}): {err_detail}")
+    except GeminiError:
+        raise
+    except Exception as e:
+        raise GeminiError(f"Failed to contact Gemini API: {str(e)}")
+
+
+def first_candidate_text(data: dict) -> Optional[str]:
+    """The text of Gemini's first answer, or None when it gave no answer."""
+    candidates = data.get("candidates", [])
+    if not candidates:
+        return None
+    parts = candidates[0].get("content", {}).get("parts") or [{}]
+    return parts[0].get("text", "").strip()
+
+
 @app.post("/api/ai-commentary", response_model=AiCommentaryResponse)
 async def generate_ai_commentary(payload: AiCommentaryRequest):
     """Generates natural language grandmaster commentary using Gemini API."""
-    api_key = payload.custom_api_key or os.environ.get("GEMINI_API_KEY")
-    if not api_key or not api_key.strip():
-        return AiCommentaryResponse(
-            success=False,
-            commentary="",
-            error="Gemini API Key is not configured. Please add GEMINI_API_KEY to backend/.env or enter it in settings.",
-        )
+    api_key = get_gemini_key(payload.custom_api_key)
+    if not api_key:
+        return AiCommentaryResponse(success=False, commentary="", error=GEMINI_KEY_MISSING)
 
     prompt = f"""You are a distinguished FIDE Grandmaster and friendly chess coach.
 Explain the strategic and tactical essence of this position to an improving chess player:
@@ -416,8 +487,6 @@ Instructions:
 3. Outline the immediate concrete plan for {payload.turn.capitalize()}.
 4. Do NOT output a raw FEN breakdown or lists of piece locations; focus directly on ideas and plans."""
 
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip()
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key.strip()}"
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -426,70 +495,16 @@ Instructions:
         },
     }
 
-    # Retryable HTTP status codes: 503 = overload, 429 = rate limit
-    RETRYABLE = {503, 429}
-    MAX_RETRIES = 3
-    last_error = "Unknown error"
-
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            for attempt in range(1, MAX_RETRIES + 1):
-                resp = await client.post(url, json=body)
+        data, model_name = await call_gemini(api_key, body)
+    except GeminiError as e:
+        return AiCommentaryResponse(success=False, commentary="", error=str(e))
 
-                if resp.status_code == 200:
-                    data = resp.json()
-                    candidates = data.get("candidates", [])
-                    if not candidates:
-                        return AiCommentaryResponse(
-                            success=False,
-                            commentary="",
-                            error="Gemini returned no commentary for this position.",
-                        )
-                    text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
-                    return AiCommentaryResponse(
-                        success=True,
-                        commentary=text,
-                        model=model_name,
-                    )
-
-                # Parse error message from JSON if available
-                err_detail = resp.text
-                try:
-                    err_json = resp.json()
-                    err_detail = err_json.get("error", {}).get("message", err_detail)
-                except Exception:
-                    pass
-
-                if resp.status_code in RETRYABLE and attempt < MAX_RETRIES:
-                    # Exponential backoff: 2s, 4s before next retry
-                    wait_seconds = 2 * attempt
-                    await asyncio.sleep(wait_seconds)
-                    last_error = err_detail
-                    continue
-
-                # Non-retryable error or exhausted retries
-                if resp.status_code in RETRYABLE:
-                    friendly = (
-                        "Gemini servers are temporarily overloaded. "
-                        "Please wait a moment and try again. "
-                        f"(Tried {MAX_RETRIES} times)"
-                    )
-                    return AiCommentaryResponse(
-                        success=False,
-                        commentary="",
-                        error=friendly,
-                    )
-
-                return AiCommentaryResponse(
-                    success=False,
-                    commentary="",
-                    error=f"Gemini API error ({resp.status_code}): {err_detail}",
-                )
-
-    except Exception as e:
+    text = first_candidate_text(data)
+    if text is None:
         return AiCommentaryResponse(
             success=False,
             commentary="",
-            error=f"Failed to contact Gemini API: {str(e)}",
+            error="Gemini returned no commentary for this position.",
         )
-
+    return AiCommentaryResponse(success=True, commentary=text, model=model_name)
