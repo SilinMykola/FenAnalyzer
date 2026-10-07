@@ -88,7 +88,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 
 ```
 ┌─────────────────────────────────────────────────┐
-│         React 18 + Vite  (localhost:5173)        │
+│         React 18 + Vite  (dev server)            │
 │   react-chessboard · chess.js · Web Audio API   │
 └────────────────────────┬────────────────────────┘
                          │  HTTP / JSON (Vite proxy)
@@ -199,7 +199,7 @@ npm run dev
 
 | Service | URL |
 |---|---|
-| **Web UI** | http://localhost:5173 |
+| **Web UI** | http://localhost:5180 (port set in `frontend/vite.config.js`) |
 | **API Docs (Swagger)** | http://localhost:8000/docs |
 | **Health Check** | http://localhost:8000/api/health |
 

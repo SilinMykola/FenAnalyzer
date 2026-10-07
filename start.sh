@@ -47,14 +47,15 @@ BACKEND_PID=$!
 sleep 1
 
 # ── 5. Start Vite Frontend ────────────────────────────────────────────────────
-echo "🎨 Starting Vite Frontend    →  http://localhost:5173"
+# Vite prints its own URL; the port is set in frontend/vite.config.js
+echo "🎨 Starting Vite Frontend (URL below)"
 cd frontend && npm run dev &
 FRONTEND_PID=$!
 
 echo ""
 echo "=========================================="
 echo "✅  Both services are running."
-echo "   Frontend : http://localhost:5173"
+echo "   Frontend : see the Vite \"Local:\" URL above"
 echo "   API Docs : http://localhost:8000/docs"
 echo "   Press Ctrl+C to stop."
 echo "=========================================="
