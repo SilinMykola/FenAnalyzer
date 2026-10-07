@@ -11,7 +11,7 @@ const PASTE_HINT = 'press Ctrl+V / ⌘V to paste the image instead';
  * recognition: { status: 'idle' | 'recognizing' | 'done' | 'error',
  *                error, fen, turnDetected, isValid }
  */
-export default function ImageImport({ onImage, recognition, onEditInEditor }) {
+export default function ImageImport({ onImage, recognition, onEditInEditor, onClear }) {
   // Object URL of the last image, shown as a thumbnail next to the result.
   const [previewUrl, setPreviewUrl] = useState(null);
   // Problems found before anything is sent: wrong file type, empty clipboard.
@@ -79,6 +79,13 @@ export default function ImageImport({ onImage, recognition, onEditInEditor }) {
     if (file) handleImage(file);
   };
 
+  // Forgets the image and any error or result; the board stays as it is.
+  const handleClear = () => {
+    setPreviewUrl(null);
+    setLocalError(null);
+    onClear();
+  };
+
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
@@ -88,6 +95,7 @@ export default function ImageImport({ onImage, recognition, onEditInEditor }) {
 
   const error = localError || (recognition.status === 'error' ? recognition.error : null);
   const sideToMove = recognition.fen?.split(' ')[1] === 'b' ? 'Black' : 'White';
+  const hasSomethingToClear = Boolean(previewUrl || localError || recognition.status !== 'idle');
 
   return (
     <div className="card image-import-card">
@@ -137,6 +145,16 @@ export default function ImageImport({ onImage, recognition, onEditInEditor }) {
               aria-label="Upload image file"
               hidden
             />
+            {hasSomethingToClear && (
+              <button
+                type="button"
+                className="preset-btn btn-danger-text"
+                onClick={handleClear}
+                disabled={recognizing}
+              >
+                Clear Image
+              </button>
+            )}
           </div>
 
           {recognizing && (

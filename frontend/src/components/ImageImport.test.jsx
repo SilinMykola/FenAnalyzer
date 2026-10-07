@@ -11,20 +11,15 @@ function imageFile(name = 'board.png', type = 'image/png') {
 }
 
 function renderImport(recognition = IDLE) {
-  const onImage = vi.fn();
-  const onEditInEditor = vi.fn();
-  const utils = render(
-    <ImageImport onImage={onImage} recognition={recognition} onEditInEditor={onEditInEditor} />
-  );
-  const rerender = (next) =>
-    utils.rerender(
-      <ImageImport onImage={onImage} recognition={next} onEditInEditor={onEditInEditor} />
-    );
-  return { ...utils, onImage, onEditInEditor, rerender };
+  const callbacks = { onImage: vi.fn(), onEditInEditor: vi.fn(), onClear: vi.fn() };
+  const utils = render(<ImageImport recognition={recognition} {...callbacks} />);
+  const rerender = (next) => utils.rerender(<ImageImport recognition={next} {...callbacks} />);
+  return { ...utils, ...callbacks, rerender };
 }
 
 const fileInput = () => screen.getByLabelText('Upload image file');
 const pasteButton = () => screen.getByRole('button', { name: /Paste Image/ });
+const clearButton = () => screen.queryByRole('button', { name: /Clear Image/ });
 
 // What navigator.clipboard.read() returns: items that list their types.
 function clipboardItem(type, blob) {
@@ -279,5 +274,51 @@ describe('ImageImport recognition state', () => {
     renderImport(IDLE);
 
     expect(screen.queryByText(/Position recognized|not legal|⚠️|Reading/)).not.toBeInTheDocument();
+  });
+});
+
+describe('ImageImport clearing', () => {
+  it('has nothing to clear before an image is given', () => {
+    renderImport(IDLE);
+
+    expect(clearButton()).not.toBeInTheDocument();
+  });
+
+  it('removes the image and tells App to forget the result', async () => {
+    const user = userEvent.setup();
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+    const { onClear, rerender } = renderImport();
+    fireEvent.change(fileInput(), { target: { files: [imageFile()] } });
+    rerender({ status: 'error', error: 'Gemini did not answer within 120 seconds.' });
+
+    await user.click(clearButton());
+
+    expect(onClear).toHaveBeenCalledTimes(1);
+    expect(screen.queryByAltText('Imported chess position')).not.toBeInTheDocument();
+    expect(revoke).toHaveBeenCalledWith('blob:test-preview');
+  });
+
+  it('removes an error about a refused file', async () => {
+    const user = userEvent.setup();
+    renderImport();
+    fireEvent.change(fileInput(), { target: { files: [imageFile('a.gif', 'image/gif')] } });
+
+    await user.click(clearButton());
+
+    expect(screen.queryByText(/Use a PNG/)).not.toBeInTheDocument();
+  });
+
+  it('can clear a result left from an earlier image', () => {
+    // App still holds the result, e.g. after switching tabs, while the
+    // component no longer has the thumbnail.
+    renderImport({ status: 'error', error: 'No chess board was found in the image.' });
+
+    expect(clearButton()).toBeEnabled();
+  });
+
+  it('cannot clear while the image is being read', () => {
+    renderImport({ status: 'recognizing' });
+
+    expect(clearButton()).toBeDisabled();
   });
 });

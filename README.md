@@ -51,6 +51,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **Side to move** is taken from the image when it shows it (a caption, a highlighted last move); otherwise White is assumed — or Black, when only that is legal — and the UI says it is a guess
 - **Castling rights** are granted wherever king and rook stand on their home squares
 - A misread piece can make the position illegal: it is then shown on a locked board, without analysis, with a **Fix in Board Editor** button
+- **Clear Image** removes the pasted picture together with its error or result; the board stays as it is
 - PNG, JPEG or WebP up to 10 MB; needs a Gemini API key (the same one as the commentary)
 
 ### 🧩 Board Editor

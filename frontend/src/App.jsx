@@ -508,6 +508,7 @@ export default function App() {
                     onImage={handleImageSelected}
                     recognition={imageRecognition}
                     onEditInEditor={() => setActiveTab('editor')}
+                    onClear={() => setImageRecognition({ status: 'idle' })}
                   />
                 </>
               ) : (

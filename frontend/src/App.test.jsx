@@ -619,6 +619,21 @@ describe('App position from an image', () => {
     expect(await screen.findByText('⚠️ Image is larger than 10 MB.')).toBeInTheDocument();
   });
 
+  it('clears the image and its error, leaving the board alone', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockResolvedValue({ success: false, error: 'No chess board was found in the image.' });
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: 'Endgame (Rook + Pawn)' }));
+    await uploadScreenshot(user);
+    await screen.findByText(/No chess board was found/);
+
+    await user.click(screen.getByRole('button', { name: /Clear Image/ }));
+
+    expect(screen.queryByText(/No chess board was found/)).not.toBeInTheDocument();
+    expect(screen.queryByAltText('Imported chess position')).not.toBeInTheDocument();
+    expect(chessboardProps().position).toBe('8/8/5k2/R7/4P3/8/5K2/8 w - - 0 1');
+  });
+
   it('forgets the recognition on Reset Board', async () => {
     const user = userEvent.setup();
     vi.mocked(recognizeImage).mockResolvedValue(recognized());
