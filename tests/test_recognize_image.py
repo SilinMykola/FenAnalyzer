@@ -116,6 +116,15 @@ class TestGeminiRequest:
             "error": "Gemini API error (400): API key not valid",
         }
 
+    def test_gives_gemini_two_minutes_to_read_the_image(self, gemini, with_key):
+        gemini.reply(httpx.ReadTimeout(""))
+
+        body = recognize().json()
+
+        assert body["error"] == (
+            "Gemini did not answer within 120 seconds. It may be busy; please try again."
+        )
+
     def test_retries_a_busy_server(self, gemini, with_key):
         busy = httpx.Response(503, text="overloaded")
         gemini.reply(busy, gemini_answer({"board": "4k3/8/8/8/8/8/8/4K3", "turn": None}))

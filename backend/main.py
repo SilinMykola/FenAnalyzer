@@ -458,8 +458,19 @@ async def call_gemini(api_key: str, body: dict, timeout: float = 20.0) -> tuple:
                 raise GeminiError(f"Gemini API error ({resp.status_code}): {err_detail}")
     except GeminiError:
         raise
+    # httpx timeouts and network errors often have an empty message, so
+    # name what happened rather than show a bare "Failed to contact".
+    except httpx.TimeoutException:
+        raise GeminiError(
+            f"Gemini did not answer within {timeout:g} seconds. It may be busy; please try again."
+        )
+    except httpx.NetworkError as e:
+        raise GeminiError(
+            f"Could not reach the Gemini API ({str(e) or type(e).__name__}). "
+            "Check the internet connection."
+        )
     except Exception as e:
-        raise GeminiError(f"Failed to contact Gemini API: {str(e)}")
+        raise GeminiError(f"Failed to contact Gemini API: {str(e) or type(e).__name__}")
 
 
 def first_candidate_text(data: dict) -> Optional[str]:
@@ -635,8 +646,8 @@ async def recognize_image(payload: RecognizeImageRequest):
     }
 
     try:
-        # Reading an image takes Gemini longer than writing commentary
-        data, model_name = await call_gemini(api_key, body, timeout=60.0)
+        # Reading an image takes Gemini much longer than writing commentary
+        data, model_name = await call_gemini(api_key, body, timeout=120.0)
     except GeminiError as e:
         return RecognizeImageResponse(success=False, error=str(e))
 

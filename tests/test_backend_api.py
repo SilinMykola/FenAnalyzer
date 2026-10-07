@@ -443,7 +443,37 @@ class TestAiCommentary:
         body = ask()
 
         assert body["success"] is False
-        assert body["error"] == "Failed to contact Gemini API: connection refused"
+        assert body["error"] == (
+            "Could not reach the Gemini API (connection refused). Check the internet connection."
+        )
+
+    # httpx network errors and timeouts often carry no message at all, which
+    # used to produce the bare "Failed to contact Gemini API:".
+    def test_explains_a_timeout(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(httpx.ReadTimeout(""))
+
+        body = ask()
+
+        assert body["error"] == (
+            "Gemini did not answer within 20 seconds. It may be busy; please try again."
+        )
+
+    def test_explains_a_network_failure_without_a_message(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(httpx.ConnectError(""))
+
+        body = ask()
+
+        assert body["error"] == (
+            "Could not reach the Gemini API (ConnectError). Check the internet connection."
+        )
+
+    def test_names_an_unexpected_error_that_has_no_message(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(RuntimeError())
+
+        assert ask()["error"] == "Failed to contact Gemini API: RuntimeError"
 
 
 # ── Real engine ────────────────────────────────────────────────────────────────
