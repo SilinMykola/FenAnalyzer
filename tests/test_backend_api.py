@@ -490,3 +490,29 @@ def test_real_stockfish_analyzes_the_starting_position():
     legal = {move.uci() for move in chess.Board().legal_moves}
     assert {entry["move_uci"] for entry in body["lines"]} <= legal
     assert body["stats"]["depth"] >= 6
+
+
+class TestCors:
+    """The browser normally reaches the API through the Vite proxy (same
+    origin), but a page on any local port may call it directly. The frontend
+    port is set only in frontend/vite.config.js, so the backend must not
+    depend on it."""
+
+    @staticmethod
+    def allowed_origin(origin):
+        response = client.get("/api/health", headers={"Origin": origin})
+        return response.headers.get("access-control-allow-origin")
+
+    @pytest.mark.parametrize(
+        "origin",
+        ["http://localhost:5180", "http://127.0.0.1:5180", "http://localhost:3000", "http://localhost:4321"],
+    )
+    def test_allows_a_page_on_any_local_port(self, origin):
+        assert self.allowed_origin(origin) == origin
+
+    @pytest.mark.parametrize(
+        "origin",
+        ["https://evil.example", "http://localhost.evil.example:5180", "http://192.168.1.10:5180"],
+    )
+    def test_refuses_other_sites(self, origin):
+        assert self.allowed_origin(origin) is None
