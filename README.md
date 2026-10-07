@@ -80,6 +80,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **FEN paste / clear** — load any position directly from a FEN string
 - **Preset positions** — one-click historic games (Kasparov's Immortal, Fischer vs. Spassky, and more)
 - **Play Best Move** — apply the engine's top recommendation with a single button
+- **Reset Board** — puts the starting position back on the board and empties the FEN box, ready for the next FEN
 
 ---
 
