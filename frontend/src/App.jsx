@@ -6,6 +6,7 @@ import AnalysisPanel from './components/AnalysisPanel';
 import PgnViewer from './components/PgnViewer';
 import BoardEditor from './components/BoardEditor';
 import ImageImport from './components/ImageImport';
+import ModelPicker from './components/ModelPicker';
 import {
   analyzeFen,
   checkBackendHealth,
@@ -118,6 +119,14 @@ export default function App() {
     } else {
       localStorage.removeItem('gemini_model');
     }
+  };
+
+  // Every model picker on the page shows and changes this one choice.
+  const geminiModelPicker = {
+    value: geminiModel,
+    models: geminiModels.models,
+    defaultModel: geminiModels.defaultModel,
+    onChange: handleSelectGeminiModel,
   };
 
   // Check backend health on initial load
@@ -539,26 +548,7 @@ export default function App() {
             </span>
           </div>
 
-          <label className="model-picker" title="Gemini model for the commentary and for reading images">
-            <span className="model-picker-label">🤖 Gemini</span>
-            <select
-              aria-label="Gemini model"
-              value={geminiModel}
-              onChange={(e) => handleSelectGeminiModel(e.target.value)}
-            >
-              <option value="">
-                {geminiModels.defaultModel ? `Default (${geminiModels.defaultModel})` : 'Default model'}
-              </option>
-              {/* A saved choice stays listed even before the list arrives. */}
-              {[...new Set([...(geminiModel ? [geminiModel] : []), ...geminiModels.models])].map(
-                (model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                )
-              )}
-            </select>
-          </label>
+          <ModelPicker {...geminiModelPicker} />
 
           <button
             type="button"
@@ -610,6 +600,7 @@ export default function App() {
                     onEditInEditor={() => setActiveTab('editor')}
                     onClear={() => setImageRecognition({ status: 'idle' })}
                     waitSeconds={geminiWait}
+                    modelPicker={geminiModelPicker}
                   />
                 </>
               ) : (
@@ -715,6 +706,7 @@ export default function App() {
                   customApiKey={customApiKey}
                   onSaveCustomApiKey={handleSaveCustomApiKey}
                   aiWaitSeconds={geminiWait}
+                  modelPicker={geminiModelPicker}
                   variationPreview={variationPreview}
                   onPreviewVariation={handlePreviewVariation}
                 />

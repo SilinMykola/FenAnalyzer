@@ -305,3 +305,32 @@ describe('AnalysisPanel Grandmaster commentary', () => {
     expect(input).toHaveValue('');
   });
 });
+
+describe('AnalysisPanel model picker by the countdown', () => {
+  const inlinePicker = () => screen.queryByLabelText('Switch Gemini model for the commentary');
+  const picker = (onChange = vi.fn()) => ({
+    value: '',
+    models: ['gemini-2.5-flash-lite'],
+    defaultModel: 'gemini-3.8-flash',
+    onChange,
+  });
+
+  it('shows the wait and offers another model while Gemini asks to wait', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderPanel({ aiWaitSeconds: 3725, modelPicker: picker(onChange) });
+
+    expect(screen.getByText(/Gemini asked to wait 1:02:05/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ask again in 1:02:05/ })).toBeDisabled();
+
+    await user.selectOptions(inlinePicker(), 'gemini-2.5-flash-lite');
+    expect(onChange).toHaveBeenCalledWith('gemini-2.5-flash-lite');
+  });
+
+  it('shows no picker while nothing has to be waited for', () => {
+    renderPanel({ aiWaitSeconds: 0, modelPicker: picker() });
+
+    expect(inlinePicker()).not.toBeInTheDocument();
+    expect(screen.queryByText(/Gemini asked to wait/)).not.toBeInTheDocument();
+  });
+});

@@ -1042,6 +1042,64 @@ describe('App Gemini model and pause', () => {
     await waitFor(() => expect(askButton()).toHaveTextContent('Ask again in 10:00'));
   });
 
+  it('sends Try Again to the model chosen right by the countdown', async () => {
+    fakeClock();
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage)
+      .mockResolvedValueOnce({
+        success: false,
+        model: 'gemini-3.8-flash',
+        error: QUOTA_ERROR,
+        retry_after_seconds: 43000,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        fen: '4k3/8/8/8/8/8/8/R3K3 w - - 0 1',
+        turn_detected: true,
+        is_valid: true,
+        model: 'gemini-2.5-flash-lite',
+      });
+    await renderApp();
+    await within(picker()).findByRole('option', { name: 'gemini-2.5-flash-lite' });
+    await uploadScreenshot(user);
+    const inline = await screen.findByLabelText('Switch Gemini model for reading images');
+
+    await user.selectOptions(inline, 'gemini-2.5-flash-lite');
+
+    // The choice is the same everywhere, and the other model is not paused.
+    expect(picker()).toHaveValue('gemini-2.5-flash-lite');
+    const tryAgain = screen.getByRole('button', { name: /Try Again/ });
+    expect(tryAgain).toBeEnabled();
+
+    await user.click(tryAgain);
+
+    expect(await screen.findByText(/Position recognized/)).toBeInTheDocument();
+    expect(recognizeImage).toHaveBeenCalledTimes(2);
+    expect(recognizeImage.mock.calls[0][0].model).toBe('');
+    expect(recognizeImage.mock.calls[1][0].model).toBe('gemini-2.5-flash-lite');
+    expect(recognizeImage.mock.calls[1][0].image_base64).toBe(btoa('png bytes'));
+  });
+
+  it('asks the Grandmaster with the model chosen right by the countdown', async () => {
+    fakeClock();
+    const user = userEvent.setup();
+    vi.mocked(getAiCommentary)
+      .mockResolvedValueOnce(refused(43000))
+      .mockResolvedValueOnce({ success: true, commentary: 'Develop the knight.' });
+    await renderApp();
+    await within(picker()).findByRole('option', { name: 'gemini-2.5-flash-lite' });
+    await user.click(askButton());
+    const inline = await screen.findByLabelText('Switch Gemini model for the commentary');
+
+    await user.selectOptions(inline, 'gemini-2.5-flash-lite');
+    await user.click(askButton());
+
+    expect(await screen.findByText('"Develop the knight."')).toBeInTheDocument();
+    expect(getAiCommentary.mock.calls[1][0].model).toBe('gemini-2.5-flash-lite');
+    // Nothing to wait for on this model, so the picker by the countdown is gone.
+    expect(screen.queryByLabelText('Switch Gemini model for the commentary')).not.toBeInTheDocument();
+  });
+
   it('does not pause after an error that is not about load or quota', async () => {
     const user = userEvent.setup();
     vi.mocked(getAiCommentary).mockResolvedValue({

@@ -2015,10 +2015,21 @@ body {
   border-color: var(--accent-color);
 }
 
-/* Countdown next to Try Again while Gemini asks to wait */
-.image-wait {
-  align-self: center;
+/* Countdown, with a model picker, while Gemini asks to wait */
+.gemini-wait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   color: var(--text-muted);
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
+}
+
+.ai-wait {
+  margin-top: 10px;
+}
+
+.model-picker-inline {
+  padding: 2px 4px;
 }

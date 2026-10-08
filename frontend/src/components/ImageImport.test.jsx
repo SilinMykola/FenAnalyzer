@@ -396,3 +396,46 @@ describe('ImageImport trying again', () => {
     expect(retryButton()).not.toBeInTheDocument();
   });
 });
+
+describe('ImageImport model picker by the countdown', () => {
+  const OVERLOADED = { status: 'error', error: 'Gemini servers are temporarily overloaded.' };
+  const inlinePicker = () => screen.queryByLabelText('Switch Gemini model for reading images');
+
+  function renderWaiting({ waitSeconds = 90, modelPicker } = {}) {
+    const callbacks = { onImage: vi.fn(), onEditInEditor: vi.fn(), onClear: vi.fn() };
+    const props = { ...callbacks, waitSeconds, modelPicker };
+    const utils = render(<ImageImport recognition={IDLE} {...props} />);
+    fireEvent.change(fileInput(), { target: { files: [imageFile()] } });
+    utils.rerender(<ImageImport recognition={OVERLOADED} {...props} />);
+    return callbacks;
+  }
+
+  it('offers another model right next to the countdown', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderWaiting({
+      modelPicker: { value: '', models: ['gemini-2.5-flash-lite'], defaultModel: 'gemini-3.8-flash', onChange },
+    });
+
+    expect(screen.getByRole('timer')).toHaveTextContent('1:30');
+    await user.selectOptions(inlinePicker(), 'gemini-2.5-flash-lite');
+
+    expect(onChange).toHaveBeenCalledWith('gemini-2.5-flash-lite');
+  });
+
+  it('points to the header when it has no picker of its own', () => {
+    renderWaiting();
+
+    expect(inlinePicker()).not.toBeInTheDocument();
+    expect(screen.getByText(/choose another model at the top/)).toBeInTheDocument();
+  });
+
+  it('shows no picker while nothing has to be waited for', () => {
+    renderWaiting({
+      waitSeconds: 0,
+      modelPicker: { value: '', models: [], defaultModel: null, onChange: vi.fn() },
+    });
+
+    expect(inlinePicker()).not.toBeInTheDocument();
+  });
+});

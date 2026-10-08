@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { IMAGE_TYPES, getImageFileError } from '../utils/imageFile';
 import { formatCountdown } from '../hooks/useGeminiCooldown';
+import ModelPicker from './ModelPicker';
 
 const PASTE_HINT = 'press Ctrl+V / ⌘V to paste the image instead';
 
@@ -13,6 +14,8 @@ const PASTE_HINT = 'press Ctrl+V / ⌘V to paste the image instead';
  *                error, fen, turnDetected, isValid }
  * waitSeconds: how long Gemini asked to wait before the next request; Try
  *              Again stays locked until it runs out.
+ * modelPicker: props for a ModelPicker shown next to that countdown, since
+ *              another model has its own quota and can be asked at once.
  */
 export default function ImageImport({
   onImage,
@@ -20,6 +23,7 @@ export default function ImageImport({
   onEditInEditor,
   onClear,
   waitSeconds = 0,
+  modelPicker,
 }) {
   // Object URL of the last image, shown as a thumbnail next to the result.
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -196,9 +200,21 @@ export default function ImageImport({
                 🔁 Try Again
               </button>
               {waitSeconds > 0 && (
-                <span className="image-wait" role="timer">
-                  ⏳ Gemini asked to wait {formatCountdown(waitSeconds)} — or choose another
-                  model at the top
+                <span className="gemini-wait">
+                  <span role="timer">⏳ Gemini asked to wait {formatCountdown(waitSeconds)}</span>
+                  {modelPicker ? (
+                    <>
+                      <span>— or switch the model:</span>
+                      <ModelPicker
+                        {...modelPicker}
+                        label=""
+                        ariaLabel="Switch Gemini model for reading images"
+                        className="model-picker-inline"
+                      />
+                    </>
+                  ) : (
+                    <span>— or choose another model at the top</span>
+                  )}
                 </span>
               )}
             </div>

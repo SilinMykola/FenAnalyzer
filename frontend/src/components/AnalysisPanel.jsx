@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { formatCountdown } from '../hooks/useGeminiCooldown';
+import ModelPicker from './ModelPicker';
 
 export default function AnalysisPanel({
   analysis,
@@ -11,6 +12,7 @@ export default function AnalysisPanel({
   customApiKey,
   onSaveCustomApiKey,
   aiWaitSeconds = 0,
+  modelPicker,
   variationPreview,
   onPreviewVariation,
 }) {
@@ -202,6 +204,19 @@ export default function AnalysisPanel({
                 Enter API Key
               </button>
             )}
+          </div>
+        )}
+
+        {/* Gemini asked to wait: another model has its own quota */}
+        {aiWaitSeconds > 0 && modelPicker && (
+          <div className="gemini-wait ai-wait">
+            <span>⏳ Gemini asked to wait {formatCountdown(aiWaitSeconds)} — or switch the model:</span>
+            <ModelPicker
+              {...modelPicker}
+              label=""
+              ariaLabel="Switch Gemini model for the commentary"
+              className="model-picker-inline"
+            />
           </div>
         )}
 

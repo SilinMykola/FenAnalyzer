@@ -33,7 +33,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - Explains *why* the best engine move is strongest, outlines the strategic plan, and highlights key threats
 - **Retry logic** with exponential backoff for 503 (overloaded) and 429 (rate limit) errors; when all three tries fail, the error says which of the two it was and passes on Google's own message — for a used-up quota that usually includes how long to wait
 - **Model picker** — the **🤖 Gemini** list in the header shows every model your API key can use (fetched from Google) and picks the one for both the commentary and reading images. The choice is remembered in the browser. The default is the server's model: `gemini-3.8-flash`, or `GEMINI_MODEL` from `backend/.env`
-- **Pause after a refusal** — when Gemini is overloaded or the quota is used up, **Ask Grandmaster** and the image box's **Try Again** are locked and show a countdown (`⏳ Ask again in 0:44`), then unlock by themselves. The wait is the one Google names (*"Please retry in 12h21m44s"*), or 30 s for an overload and 60 s for a rate limit when it names none. Each model has its own quota and its own pause, so choosing another model in the header lifts the lock at once. A running pause survives a page reload
+- **Pause after a refusal** — when Gemini is overloaded or the quota is used up, **Ask Grandmaster** and the image box's **Try Again** are locked and show a countdown (`⏳ Ask again in 0:44`), then unlock by themselves. The wait is the one Google names (*"Please retry in 12h21m44s"*), or 30 s for an overload and 60 s for a rate limit when it names none. Each model has its own quota and its own pause, so choosing another model lifts the lock at once — the same model list appears right next to each countdown, so there is no need to go up to the header. All the lists show and change one shared choice. A running pause survives a page reload
 - When Google names a wait, the backend does not retry before it ends: that would only be refused again
 - API key configurable via `backend/.env` or directly in the UI — no backend restart needed
 
@@ -56,7 +56,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **Side to move** is taken from the image when it shows it (a caption, a highlighted last move); otherwise White is assumed — or Black, when only that is legal — and the UI says it is a guess
 - **Castling rights** are granted wherever king and rook stand on their home squares
 - A misread piece can make the position illegal: it is then shown on a locked board, without analysis, with a **Fix in Board Editor** button
-- **Try Again** — when reading the image fails (Gemini overloaded, a timeout, a network error), one click sends the same picture again, no need to paste it anew. After an overload or a used-up quota the button waits out Gemini's pause with a countdown next to it
+- **Try Again** — when reading the image fails (Gemini overloaded, a timeout, a network error), one click sends the same picture again, no need to paste it anew. After an overload or a used-up quota the button waits out Gemini's pause with a countdown next to it, and a model list beside the countdown lets you switch to another model and send the image again at once
 - **Clear Image** removes the pasted picture together with its error or result; the board stays as it is
 - PNG, JPEG or WebP up to 10 MB; needs a Gemini API key (the same one as the commentary)
 
@@ -357,6 +357,7 @@ FenAnalyzer/
 │       │   ├── BoardEditor.jsx     # Custom position builder · piece palette · FEN export
 │       │   ├── FenInput.jsx        # FEN input · presets · depth & MultiPV controls
 │       │   ├── ImageImport.jsx     # Paste / upload / drop a board image for recognition
+│       │   ├── ModelPicker.jsx     # Gemini model dropdown (header and next to a countdown)
 │       │   ├── AnalysisPanel.jsx   # Evaluation · WDL bar · MultiPV lines · Gemini AI
 │       │   └── PgnViewer.jsx       # PGN import · move-by-move navigation · keyboard support
 │       ├── hooks/
