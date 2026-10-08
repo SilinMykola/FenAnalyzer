@@ -358,7 +358,9 @@ class TestAiCommentary:
         assert "Turn to move: White" in prompt
         assert "+0.30 (Even position)" in prompt
         assert "Recommended Move: e4 (Pawn moves to e4)" in prompt
-        assert sent["generationConfig"] == {"temperature": 0.4, "maxOutputTokens": 1000}
+        # Thinking models spend part of the limit before answering, so it is generous.
+        assert sent["generationConfig"] == {"temperature": 0.4, "maxOutputTokens": 8192}
+        assert "no greeting, no headings, no Markdown" in prompt
 
     def test_fills_in_missing_details(self, gemini, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "server-key")
@@ -387,6 +389,55 @@ class TestAiCommentary:
 
         assert gemini.requests[0].url.path == "/v1beta/models/gemini-test:generateContent"
         assert body["model"] == "gemini-test"
+
+    def test_joins_an_answer_sent_in_several_parts(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        parts = [
+            {"text": "Planning the reply...", "thought": True},
+            {"text": "At first glance, Black is "},
+            {"text": "under pressure on the queenside."},
+        ]
+        gemini.reply(httpx.Response(200, json={"candidates": [{"content": {"parts": parts}}]}))
+
+        body = ask()
+
+        assert body["commentary"] == "At first glance, Black is under pressure on the queenside."
+
+    def test_says_so_when_the_answer_was_cut_off(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(
+            httpx.Response(
+                200,
+                json={
+                    "candidates": [
+                        {
+                            "content": {"parts": [{"text": "At first glance, Black is"}]},
+                            "finishReason": "MAX_TOKENS",
+                        }
+                    ]
+                },
+            )
+        )
+
+        body = ask()
+
+        assert body["success"] is True
+        assert body["commentary"].startswith("At first glance, Black is …")
+        assert "answer was cut off" in body["commentary"]
+
+    def test_reports_an_answer_cut_off_before_its_first_word(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(
+            httpx.Response(
+                200,
+                json={"candidates": [{"content": {"parts": []}, "finishReason": "MAX_TOKENS"}]},
+            )
+        )
+
+        body = ask()
+
+        assert body["success"] is False
+        assert "cut off at its length limit before it wrote anything" in body["error"]
 
     def test_no_candidates(self, gemini, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "key")
@@ -541,7 +592,7 @@ class TestAiCommentary:
         body = ask()
 
         assert body["error"] == (
-            "Gemini did not answer within 20 seconds. It may be busy; please try again."
+            "Gemini did not answer within 60 seconds. It may be busy; please try again."
         )
 
     def test_explains_a_network_failure_without_a_message(self, gemini, monkeypatch):

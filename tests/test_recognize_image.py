@@ -229,6 +229,43 @@ class TestReadingTheAnswer:
         assert body["success"] is False
         assert body["error"] == "Could not understand Gemini's answer. Please try again."
 
+    def test_says_so_when_the_answer_was_cut_off(self, gemini, with_key):
+        gemini.reply(
+            httpx.Response(
+                200,
+                json={
+                    "candidates": [
+                        {
+                            "content": {"parts": [{"text": '{"board": "rnbqkbnr/pppp'}]},
+                            "finishReason": "MAX_TOKENS",
+                        }
+                    ]
+                },
+            )
+        )
+
+        body = recognize().json()
+
+        assert body["success"] is False
+        assert body["error"].startswith("Gemini's answer was cut off before the end.")
+
+    def test_reads_an_answer_sent_in_several_parts(self, gemini, with_key):
+        parts = [{"text": '{"board": "4k3/8/8/8/8/8/8/'}, {"text": '4K3", "turn": "w"}'}]
+        gemini.reply(httpx.Response(200, json={"candidates": [{"content": {"parts": parts}}]}))
+
+        body = recognize().json()
+
+        assert body["success"] is True
+        assert body["fen"] == "4k3/8/8/8/8/8/8/4K3 w - - 0 1"
+
+    def test_asks_for_room_to_think_and_answer(self, gemini, with_key):
+        gemini.reply(gemini_answer({"board": "4k3/8/8/8/8/8/8/4K3", "turn": "w"}))
+
+        recognize()
+
+        sent = json.loads(gemini.requests[0].content)
+        assert sent["generationConfig"]["maxOutputTokens"] == 8192
+
     def test_an_empty_answer(self, gemini, with_key):
         assert self.answer(gemini, "")["error"] == "Gemini returned no answer for this image."
 

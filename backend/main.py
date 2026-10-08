@@ -549,13 +549,29 @@ async def call_gemini(
         raise GeminiError(f"Failed to contact Gemini API: {str(e) or type(e).__name__}")
 
 
+# Room for the answer. Gemini 2.5 and newer think before answering, and that
+# hidden thinking counts against the same limit, so a small one cuts the
+# answer off after a few words.
+GEMINI_MAX_OUTPUT_TOKENS = 8192
+
+
 def first_candidate_text(data: dict) -> Optional[str]:
-    """The text of Gemini's first answer, or None when it gave no answer."""
+    """The text of Gemini's first answer, or None when it gave no answer.
+
+    An answer may come in several parts; they are joined. Thought summaries,
+    if a model sends them, are not part of the answer and are left out.
+    """
     candidates = data.get("candidates", [])
     if not candidates:
         return None
-    parts = candidates[0].get("content", {}).get("parts") or [{}]
-    return parts[0].get("text", "").strip()
+    parts = candidates[0].get("content", {}).get("parts") or []
+    return "".join(p.get("text", "") for p in parts if not p.get("thought")).strip()
+
+
+def answer_was_cut_off(data: dict) -> bool:
+    """Whether Gemini stopped because it hit the output limit, mid-answer."""
+    candidates = data.get("candidates", [])
+    return bool(candidates) and candidates[0].get("finishReason") == "MAX_TOKENS"
 
 
 class GeminiModelsRequest(BaseModel):
@@ -636,18 +652,20 @@ Instructions:
 1. Provide a direct, instructive Grandmaster assessment in 2-4 sentences.
 2. Clearly explain WHY {payload.best_move_san} is the strongest move (tactical trap, space advantage, piece activity, or defensive necessity).
 3. Outline the immediate concrete plan for {payload.turn.capitalize()}.
-4. Do NOT output a raw FEN breakdown or lists of piece locations; focus directly on ideas and plans."""
+4. Do NOT output a raw FEN breakdown or lists of piece locations; focus directly on ideas and plans.
+5. Start straight with the assessment: no greeting, no headings, no Markdown. Plain prose only."""
 
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0.4,
-            "maxOutputTokens": 1000,
+            "maxOutputTokens": GEMINI_MAX_OUTPUT_TOKENS,
         },
     }
 
     try:
-        data, model_name = await call_gemini(api_key, body, model=payload.model)
+        # Thinking models take a while before the first word.
+        data, model_name = await call_gemini(api_key, body, timeout=60.0, model=payload.model)
     except GeminiError as e:
         return AiCommentaryResponse(
             success=False,
@@ -664,7 +682,19 @@ Instructions:
             commentary="",
             error="Gemini returned no commentary for this position.",
         )
+    if answer_was_cut_off(data):
+        if not text:
+            return AiCommentaryResponse(
+                success=False,
+                commentary="",
+                model=model_name,
+                error=COMMENTARY_CUT_OFF + " before it wrote anything. Ask again or choose another model.",
+            )
+        text += f" … ({COMMENTARY_CUT_OFF}. Ask again or choose another model.)"
     return AiCommentaryResponse(success=True, commentary=text, model=model_name)
+
+
+COMMENTARY_CUT_OFF = "Gemini's answer was cut off at its length limit"
 
 
 # ── Position recognition from an image ─────────────────────────────────────────
@@ -786,7 +816,7 @@ async def recognize_image(payload: RecognizeImageRequest):
         "generationConfig": {
             "temperature": 0,
             "responseMimeType": "application/json",
-            "maxOutputTokens": 2000,
+            "maxOutputTokens": GEMINI_MAX_OUTPUT_TOKENS,
         },
     }
 
@@ -810,9 +840,12 @@ async def recognize_image(payload: RecognizeImageRequest):
     try:
         answer = parse_recognition(text)
     except ValueError:
-        return RecognizeImageResponse(
-            success=False, model=model_name, error="Could not understand Gemini's answer. Please try again."
+        error = (
+            "Gemini's answer was cut off before the end. Please try again or choose another model."
+            if answer_was_cut_off(data)
+            else "Could not understand Gemini's answer. Please try again."
         )
+        return RecognizeImageResponse(success=False, model=model_name, error=error)
 
     placement = answer.get("board")
     if not placement:
