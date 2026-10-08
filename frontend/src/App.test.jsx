@@ -1,9 +1,15 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
-import { analyzeFen, checkBackendHealth, getAiCommentary, recognizeImage } from './api/chessApi';
+import {
+  analyzeFen,
+  checkBackendHealth,
+  getAiCommentary,
+  listGeminiModels,
+  recognizeImage,
+} from './api/chessApi';
 import { chessboardProps } from './test/mockChessboard';
 
 // App is tested together with its real child components. Only the edges are
@@ -74,6 +80,11 @@ beforeEach(() => {
   vi.mocked(checkBackendHealth).mockResolvedValue({ ok: true });
   vi.mocked(analyzeFen).mockResolvedValue(ANALYSIS);
   vi.mocked(getAiCommentary).mockResolvedValue({ success: true, commentary: 'Take the centre.' });
+  vi.mocked(listGeminiModels).mockResolvedValue({
+    success: true,
+    models: ['gemini-2.5-flash-lite', 'gemini-3.8-flash'],
+    default_model: 'gemini-3.8-flash',
+  });
 });
 
 describe('App start-up', () => {
@@ -522,6 +533,7 @@ describe('App Grandmaster commentary', () => {
       explanation: 'Pawn moves to e4',
       verbal_verdict: 'Even position (balanced game)',
       custom_api_key: '',
+      model: '',
     });
   });
 
@@ -604,6 +616,7 @@ describe('App position from an image', () => {
       image_base64: btoa('png bytes'),
       mime_type: 'image/png',
       custom_api_key: '',
+      model: '',
     });
     expect(chessboardProps().position).toBe(RECOGNIZED);
     expect(screen.getByLabelText('FEN Position')).toHaveValue(RECOGNIZED);
@@ -866,6 +879,183 @@ describe('App board orientation', () => {
     await user.click(screen.getByRole('button', { name: /Reset Board/ }));
 
     expect(orientation()).toBe('white');
+  });
+});
+
+describe('App Gemini model and pause', () => {
+  const picker = () => screen.getByLabelText('Gemini model');
+  const askButton = () => screen.getByRole('button', { name: /Ask Grandmaster|Ask again in/ });
+  const QUOTA_ERROR =
+    'Gemini refused the request: too many requests, or the API key\'s quota for this model is used up.';
+  const refused = (seconds, model = 'gemini-3.8-flash') => ({
+    success: false,
+    commentary: '',
+    model,
+    error: QUOTA_ERROR,
+    retry_after_seconds: seconds,
+  });
+
+  // Only the countdown's clock is faked; promises and React stay real.
+  function fakeClock() {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+  }
+  afterEach(() => vi.useRealTimers());
+
+  async function uploadScreenshot(user) {
+    await user.upload(
+      screen.getByLabelText('Upload image file'),
+      new File(['png bytes'], 'board.png', { type: 'image/png' })
+    );
+  }
+
+  it('offers the models the key can use, with the server default first', async () => {
+    await renderApp();
+
+    await waitFor(() => expect(within(picker()).getAllByRole('option')).toHaveLength(3));
+    expect(within(picker()).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Default (gemini-3.8-flash)',
+      'gemini-2.5-flash-lite',
+      'gemini-3.8-flash',
+    ]);
+    expect(picker()).toHaveValue('');
+  });
+
+  it('asks the chosen model and remembers it', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await within(picker()).findByRole('option', { name: 'gemini-2.5-flash-lite' });
+
+    await user.selectOptions(picker(), 'gemini-2.5-flash-lite');
+    await user.click(askButton());
+
+    expect(getAiCommentary.mock.calls[0][0].model).toBe('gemini-2.5-flash-lite');
+    expect(localStorage.getItem('gemini_model')).toBe('gemini-2.5-flash-lite');
+  });
+
+  it('reads images with the chosen model too', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockResolvedValue({ success: false, error: 'nope' });
+    localStorage.setItem('gemini_model', 'gemini-2.5-flash-lite');
+    await renderApp();
+
+    await uploadScreenshot(user);
+
+    await waitFor(() => expect(recognizeImage).toHaveBeenCalled());
+    expect(recognizeImage.mock.calls[0][0].model).toBe('gemini-2.5-flash-lite');
+  });
+
+  it('keeps a saved model selected even when the list cannot be fetched', async () => {
+    vi.mocked(listGeminiModels).mockRejectedValue(new Error('offline'));
+    localStorage.setItem('gemini_model', 'gemini-2.5-pro');
+    await renderApp();
+
+    expect(picker()).toHaveValue('gemini-2.5-pro');
+  });
+
+  it('asks for the model list again with a new API key', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: /Set API Key/ }));
+
+    await user.type(screen.getByLabelText(/Gemini API Key/), 'new-key');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(listGeminiModels).toHaveBeenLastCalledWith({ custom_api_key: 'new-key' })
+    );
+  });
+
+  it('locks Ask Grandmaster with a countdown after a quota refusal, then unlocks it', async () => {
+    fakeClock();
+    const user = userEvent.setup();
+    vi.mocked(getAiCommentary).mockResolvedValue(refused(44));
+    await renderApp();
+    await within(picker()).findByRole('option', { name: 'Default (gemini-3.8-flash)' });
+
+    await user.click(askButton());
+
+    expect(await screen.findByText(/quota for this model is used up/)).toBeInTheDocument();
+    expect(askButton()).toBeDisabled();
+    expect(askButton()).toHaveTextContent('Ask again in 0:44');
+
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(askButton()).toHaveTextContent('Ask again in 0:34');
+
+    act(() => vi.advanceTimersByTime(34_000));
+    expect(askButton()).toBeEnabled();
+    expect(askButton()).toHaveTextContent('Ask Grandmaster');
+  });
+
+  it('locks Try Again with a countdown after a quota refusal, then unlocks it', async () => {
+    fakeClock();
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockResolvedValue({
+      success: false,
+      model: 'gemini-3.8-flash',
+      error: QUOTA_ERROR,
+      retry_after_seconds: 12 * 3600 + 21 * 60 + 45,
+    });
+    await renderApp();
+    await within(picker()).findByRole('option', { name: 'Default (gemini-3.8-flash)' });
+
+    await uploadScreenshot(user);
+
+    expect(await screen.findByRole('timer')).toHaveTextContent('12:21:45');
+    expect(screen.getByRole('button', { name: /Try Again/ })).toBeDisabled();
+    // The same quota blocks the commentary as well.
+    expect(askButton()).toBeDisabled();
+
+    act(() => vi.advanceTimersByTime((12 * 3600 + 21 * 60 + 45) * 1000));
+    expect(screen.getByRole('button', { name: /Try Again/ })).toBeEnabled();
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument();
+  });
+
+  it('lifts the pause when another model is chosen, and brings it back for the blocked one', async () => {
+    fakeClock();
+    const user = userEvent.setup();
+    vi.mocked(getAiCommentary).mockResolvedValue(refused(600));
+    await renderApp();
+    await within(picker()).findByRole('option', { name: 'gemini-2.5-flash-lite' });
+    await user.click(askButton());
+    await waitFor(() => expect(askButton()).toBeDisabled());
+
+    await user.selectOptions(picker(), 'gemini-2.5-flash-lite');
+    expect(askButton()).toBeEnabled();
+
+    await user.selectOptions(picker(), '');
+    expect(askButton()).toHaveTextContent('Ask again in 10:00');
+  });
+
+  it('remembers the pause across a page reload', async () => {
+    fakeClock();
+    const user = userEvent.setup();
+    vi.mocked(getAiCommentary).mockResolvedValue(refused(600));
+    const { unmount } = render(<App />);
+    await screen.findByText('Even position (balanced game)');
+    await within(picker()).findByRole('option', { name: 'Default (gemini-3.8-flash)' });
+    await user.click(askButton());
+    await waitFor(() => expect(askButton()).toBeDisabled());
+    unmount();
+
+    await renderApp();
+
+    await waitFor(() => expect(askButton()).toHaveTextContent('Ask again in 10:00'));
+  });
+
+  it('does not pause after an error that is not about load or quota', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getAiCommentary).mockResolvedValue({
+      success: false,
+      commentary: '',
+      model: 'gemini-3.8-flash',
+      error: 'Gemini API error (400): API key not valid',
+    });
+    await renderApp();
+
+    await user.click(askButton());
+
+    expect(await screen.findByText(/API key not valid/)).toBeInTheDocument();
+    expect(askButton()).toBeEnabled();
   });
 });
 

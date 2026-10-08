@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { IMAGE_TYPES, getImageFileError } from '../utils/imageFile';
+import { formatCountdown } from '../hooks/useGeminiCooldown';
 
 const PASTE_HINT = 'press Ctrl+V / ⌘V to paste the image instead';
 
@@ -10,8 +11,16 @@ const PASTE_HINT = 'press Ctrl+V / ⌘V to paste the image instead';
  *
  * recognition: { status: 'idle' | 'recognizing' | 'done' | 'error',
  *                error, fen, turnDetected, isValid }
+ * waitSeconds: how long Gemini asked to wait before the next request; Try
+ *              Again stays locked until it runs out.
  */
-export default function ImageImport({ onImage, recognition, onEditInEditor, onClear }) {
+export default function ImageImport({
+  onImage,
+  recognition,
+  onEditInEditor,
+  onClear,
+  waitSeconds = 0,
+}) {
   // Object URL of the last image, shown as a thumbnail next to the result.
   const [previewUrl, setPreviewUrl] = useState(null);
   // The last image sent, kept so a failed recognition can be tried again.
@@ -38,7 +47,7 @@ export default function ImageImport({ onImage, recognition, onEditInEditor, onCl
 
   // Sends the same image again, e.g. after Gemini was overloaded.
   const handleRetry = () => {
-    if (recognizing || !lastImage) return;
+    if (recognizing || !lastImage || waitSeconds > 0) return;
     onImage(lastImage);
   };
 
@@ -178,9 +187,20 @@ export default function ImageImport({ onImage, recognition, onEditInEditor, onCl
 
           {canRetry && (
             <div className="presets-buttons">
-              <button type="button" className="preset-btn" onClick={handleRetry}>
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={handleRetry}
+                disabled={waitSeconds > 0}
+              >
                 🔁 Try Again
               </button>
+              {waitSeconds > 0 && (
+                <span className="image-wait" role="timer">
+                  ⏳ Gemini asked to wait {formatCountdown(waitSeconds)} — or choose another
+                  model at the top
+                </span>
+              )}
             </div>
           )}
 

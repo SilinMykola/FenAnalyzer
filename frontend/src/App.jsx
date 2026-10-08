@@ -6,11 +6,18 @@ import AnalysisPanel from './components/AnalysisPanel';
 import PgnViewer from './components/PgnViewer';
 import BoardEditor from './components/BoardEditor';
 import ImageImport from './components/ImageImport';
-import { analyzeFen, checkBackendHealth, getAiCommentary, recognizeImage } from './api/chessApi';
+import {
+  analyzeFen,
+  checkBackendHealth,
+  getAiCommentary,
+  listGeminiModels,
+  recognizeImage,
+} from './api/chessApi';
 import { readImageAsBase64 } from './utils/imageFile';
 import { isChess960Pgn, withStandardCastlingPgn } from './utils/pgn';
 import { playMoveSound } from './utils/sound';
 import useTheme from './hooks/useTheme';
+import useGeminiCooldown from './hooks/useGeminiCooldown';
 
 const DEFAULT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -63,8 +70,55 @@ export default function App() {
     return localStorage.getItem('gemini_api_key') || '';
   });
 
+  // The Gemini model to ask; '' is the server's default. The list comes from
+  // the backend, which asks Google what the API key can use.
+  const [geminiModel, setGeminiModel] = useState(() => {
+    return localStorage.getItem('gemini_model') || '';
+  });
+  const [geminiModels, setGeminiModels] = useState({ models: [], defaultModel: null });
+  const activeGeminiModel = geminiModel || geminiModels.defaultModel;
+  // Seconds Gemini asked to wait before the next request to this model.
+  const { secondsLeft: geminiWait, startCooldown: startGeminiCooldown } =
+    useGeminiCooldown(activeGeminiModel);
+
   // Reading a position from an image: { status, error, fen, turnDetected, isValid }
   const [imageRecognition, setImageRecognition] = useState({ status: 'idle' });
+
+  // Fetch the models the key can use; a new key may open up other models.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await listGeminiModels({ custom_api_key: customApiKey });
+        if (cancelled || !res) return;
+        setGeminiModels({
+          models: res.success ? res.models : [],
+          defaultModel: res.default_model || null,
+        });
+      } catch {
+        // Without the list the picker still offers the default model.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [customApiKey]);
+
+  // Gemini refused for load or quota and said how long to wait.
+  const pauseGeminiAfter = (res) => {
+    if (res && !res.success && res.retry_after_seconds) {
+      startGeminiCooldown(res.model || activeGeminiModel, res.retry_after_seconds);
+    }
+  };
+
+  const handleSelectGeminiModel = (model) => {
+    setGeminiModel(model);
+    if (model) {
+      localStorage.setItem('gemini_model', model);
+    } else {
+      localStorage.removeItem('gemini_model');
+    }
+  };
 
   // Check backend health on initial load
   useEffect(() => {
@@ -297,6 +351,7 @@ export default function App() {
   // Ask Grandmaster AI Commentary handler
   const handleAskGrandmaster = async () => {
     if (!analysis || !analysis.lines || analysis.lines.length === 0) return;
+    if (geminiWait > 0) return;
 
     const topChoice = analysis.lines[0];
     setAiLoading(true);
@@ -311,8 +366,10 @@ export default function App() {
         explanation: topChoice.explanation,
         verbal_verdict: analysis.verbal_verdict,
         custom_api_key: customApiKey,
+        model: geminiModel,
       });
 
+      pauseGeminiAfter(res);
       if (!res.success) {
         setAiError(res.error || 'Failed to generate commentary');
       } else {
@@ -335,7 +392,9 @@ export default function App() {
         image_base64,
         mime_type: file.type,
         custom_api_key: customApiKey,
+        model: geminiModel,
       });
+      pauseGeminiAfter(res);
       if (!res.success) {
         setImageRecognition({
           status: 'error',
@@ -480,6 +539,27 @@ export default function App() {
             </span>
           </div>
 
+          <label className="model-picker" title="Gemini model for the commentary and for reading images">
+            <span className="model-picker-label">🤖 Gemini</span>
+            <select
+              aria-label="Gemini model"
+              value={geminiModel}
+              onChange={(e) => handleSelectGeminiModel(e.target.value)}
+            >
+              <option value="">
+                {geminiModels.defaultModel ? `Default (${geminiModels.defaultModel})` : 'Default model'}
+              </option>
+              {/* A saved choice stays listed even before the list arrives. */}
+              {[...new Set([...(geminiModel ? [geminiModel] : []), ...geminiModels.models])].map(
+                (model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                )
+              )}
+            </select>
+          </label>
+
           <button
             type="button"
             className="theme-toggle"
@@ -529,6 +609,7 @@ export default function App() {
                     recognition={imageRecognition}
                     onEditInEditor={() => setActiveTab('editor')}
                     onClear={() => setImageRecognition({ status: 'idle' })}
+                    waitSeconds={geminiWait}
                   />
                 </>
               ) : (
@@ -633,6 +714,7 @@ export default function App() {
                   aiError={aiError}
                   customApiKey={customApiKey}
                   onSaveCustomApiKey={handleSaveCustomApiKey}
+                  aiWaitSeconds={geminiWait}
                   variationPreview={variationPreview}
                   onPreviewVariation={handlePreviewVariation}
                 />

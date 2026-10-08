@@ -40,6 +40,7 @@ export async function getAiCommentary({
   explanation,
   verbal_verdict,
   custom_api_key,
+  model,
 }) {
   const response = await fetch('/api/ai-commentary', {
     method: 'POST',
@@ -54,6 +55,7 @@ export async function getAiCommentary({
       explanation,
       verbal_verdict,
       custom_api_key: custom_api_key || undefined,
+      model: model || undefined,
     }),
   });
 
@@ -67,9 +69,10 @@ export async function getAiCommentary({
 
 /**
  * Reads a chess position from an image (sent as base64) using Gemini.
- * Resolves to { success, fen, turn_detected, is_valid, error }.
+ * Resolves to { success, fen, turn_detected, is_valid, model, error,
+ * retry_after_seconds }.
  */
-export async function recognizeImage({ image_base64, mime_type, custom_api_key }) {
+export async function recognizeImage({ image_base64, mime_type, custom_api_key, model }) {
   const response = await fetch('/api/recognize-image', {
     method: 'POST',
     headers: {
@@ -78,6 +81,30 @@ export async function recognizeImage({ image_base64, mime_type, custom_api_key }
     body: JSON.stringify({
       image_base64,
       mime_type,
+      custom_api_key: custom_api_key || undefined,
+      model: model || undefined,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Server error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * The Gemini models the API key can use, for the model picker.
+ * Resolves to { success, models, default_model, error }.
+ */
+export async function listGeminiModels({ custom_api_key }) {
+  const response = await fetch('/api/gemini-models', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
       custom_api_key: custom_api_key || undefined,
     }),
   });

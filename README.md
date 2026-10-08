@@ -32,7 +32,9 @@ interactively, build custom positions, and get natural language grandmaster coac
 - One-click **natural language coaching** from Google Gemini 3.8 Flash
 - Explains *why* the best engine move is strongest, outlines the strategic plan, and highlights key threats
 - **Retry logic** with exponential backoff for 503 (overloaded) and 429 (rate limit) errors; when all three tries fail, the error says which of the two it was and passes on Google's own message — for a used-up quota that usually includes how long to wait
-- **Model** is `gemini-3.8-flash` by default; set `GEMINI_MODEL` in `backend/.env` to use another one, e.g. when that model is overloaded
+- **Model picker** — the **🤖 Gemini** list in the header shows every model your API key can use (fetched from Google) and picks the one for both the commentary and reading images. The choice is remembered in the browser. The default is the server's model: `gemini-3.8-flash`, or `GEMINI_MODEL` from `backend/.env`
+- **Pause after a refusal** — when Gemini is overloaded or the quota is used up, **Ask Grandmaster** and the image box's **Try Again** are locked and show a countdown (`⏳ Ask again in 0:44`), then unlock by themselves. The wait is the one Google names (*"Please retry in 12h21m44s"*), or 30 s for an overload and 60 s for a rate limit when it names none. Each model has its own quota and its own pause, so choosing another model in the header lifts the lock at once. A running pause survives a page reload
+- When Google names a wait, the backend does not retry before it ends: that would only be refused again
 - API key configurable via `backend/.env` or directly in the UI — no backend restart needed
 
 ### 📋 PGN Game Explorer
@@ -54,7 +56,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **Side to move** is taken from the image when it shows it (a caption, a highlighted last move); otherwise White is assumed — or Black, when only that is legal — and the UI says it is a guess
 - **Castling rights** are granted wherever king and rook stand on their home squares
 - A misread piece can make the position illegal: it is then shown on a locked board, without analysis, with a **Fix in Board Editor** button
-- **Try Again** — when reading the image fails (Gemini overloaded, a timeout, a network error), one click sends the same picture again, no need to paste it anew
+- **Try Again** — when reading the image fails (Gemini overloaded, a timeout, a network error), one click sends the same picture again, no need to paste it anew. After an overload or a used-up quota the button waits out Gemini's pause with a countdown next to it
 - **Clear Image** removes the pasted picture together with its error or result; the board stays as it is
 - PNG, JPEG or WebP up to 10 MB; needs a Gemini API key (the same one as the commentary)
 
@@ -100,6 +102,7 @@ interactively, build custom positions, and get natural language grandmaster coac
                          │  POST /api/analyze
                          │  POST /api/ai-commentary
                          │  POST /api/recognize-image
+                         │  POST /api/gemini-models
                          │  GET  /api/health
                          ▼
 ┌─────────────────────────────────────────────────┐
@@ -260,18 +263,26 @@ Generates grandmaster coaching commentary via Google Gemini.
   "score": "+0.37",
   "best_move_san": "d4",
   "explanation": "Pawn moves to d4",
-  "verbal_verdict": "Even position (balanced game)"
+  "verbal_verdict": "Even position (balanced game)",
+  "model": "gemini-2.5-flash-lite"
 }
 ```
+`model` is optional; without it the server's default model is asked. Only plain model names
+(lowercase letters, digits, `.` and `-`) are accepted, anything else is rejected with `422`.
 
 **Response:**
 ```json
 {
   "success": true,
   "commentary": "White strikes in the center with 3. d4, opening lines for the bishops...",
-  "model": "gemini-3.8-flash"
+  "model": "gemini-3.8-flash",
+  "error": null,
+  "retry_after_seconds": null
 }
 ```
+When Gemini is overloaded (503) or refuses for rate limit or quota (429), `success` is `false`,
+`error` says which it was and ends with Google's own message, and `retry_after_seconds` says how
+long to wait before asking this model again.
 
 ### `POST /api/recognize-image`
 Reads a chess position from an image via Google Gemini and returns it as FEN.
@@ -280,7 +291,8 @@ Reads a chess position from an image via Google Gemini and returns it as FEN.
 ```json
 {
   "image_base64": "iVBORw0KGgoAAAANSUhEUgAA...",
-  "mime_type": "image/png"
+  "mime_type": "image/png",
+  "model": "gemini-2.5-flash-lite"
 }
 ```
 `image_base64` may also be a whole `data:image/png;base64,...` URL. Accepted types: PNG, JPEG, WebP
@@ -294,12 +306,32 @@ Reads a chess position from an image via Google Gemini and returns it as FEN.
   "turn_detected": false,
   "is_valid": true,
   "model": "gemini-3.8-flash",
-  "error": null
+  "error": null,
+  "retry_after_seconds": null
 }
 ```
+`model` and `retry_after_seconds` work as in `/api/ai-commentary`.
 `turn_detected` tells whether the side to move came from the image or was assumed.
 `is_valid: false` means the position is illegal (e.g. a missing king) and Stockfish would reject it.
 When nothing could be read, `success` is `false` and `error` says why.
+
+### `POST /api/gemini-models`
+Lists the Gemini models the API key can use, for the model picker. Listing does not count
+against the generation quota.
+
+**Request:** `{ "custom_api_key": "..." }` — optional; the server's `GEMINI_API_KEY` is used without it.
+
+**Response:**
+```json
+{
+  "success": true,
+  "models": ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.8-flash"],
+  "default_model": "gemini-3.8-flash",
+  "error": null
+}
+```
+Only models that can write text are listed; embedding, speech, audio, live and image-generation
+models are left out.
 
 ### `GET /api/health`
 Returns engine availability and API key configuration status.
@@ -327,10 +359,12 @@ FenAnalyzer/
 │       │   ├── AnalysisPanel.jsx   # Evaluation · WDL bar · MultiPV lines · Gemini AI
 │       │   └── PgnViewer.jsx       # PGN import · move-by-move navigation · keyboard support
 │       ├── hooks/
-│       │   └── useTheme.js         # Dark/light theme state, persisted in localStorage
+│       │   ├── useTheme.js         # Dark/light theme state, persisted in localStorage
+│       │   └── useGeminiCooldown.js # Per-model pause and countdown after a Gemini refusal
 │       ├── utils/
 │       │   ├── editorFen.js        # Board editor FEN parsing, building & validation
 │       │   ├── imageFile.js        # Image type/size checks and base64 reading
+│       │   ├── pgn.js              # Chess960 castling rights made readable for chess.js
 │       │   └── sound.js            # Synthesized Web Audio sound effects
 │       ├── App.jsx                 # Top-level state orchestrator
 │       ├── index.css               # Theme tokens (dark & light) & component styles
@@ -382,7 +416,7 @@ the unexpected pass, and the marker should be removed.
 | Variable | Default | Description |
 |---|---|---|
 | `GEMINI_API_KEY` | — | Google Gemini API key for AI commentary |
-| `GEMINI_MODEL` | `gemini-3.8-flash` | Gemini model name |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Default Gemini model; the header's model picker can choose another per browser |
 | `STOCKFISH_PATH` | auto-detect | Override Stockfish binary path |
 
 ---

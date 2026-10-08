@@ -2,6 +2,7 @@ import asyncio
 import base64
 import binascii
 import json
+import math
 import os
 import re
 import shutil
@@ -376,6 +377,54 @@ def analyze_position(payload: AnalyzeRequest):
     )
 
 
+DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta"
+
+# The model name goes into the request URL, so only plain names are accepted.
+GEMINI_MODEL_FIELD = Field(
+    None,
+    pattern=r"^[a-z0-9][a-z0-9.\-]*$",
+    max_length=100,
+    description="Gemini model to ask; the server default when omitted",
+)
+
+# Pauses before the next request when Gemini gives no delay of its own.
+OVERLOAD_PAUSE_SECONDS = 30
+RATE_LIMIT_PAUSE_SECONDS = 60
+
+
+def default_gemini_model() -> str:
+    return os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_GEMINI_MODEL
+
+
+def parse_duration(text: str) -> Optional[float]:
+    """Seconds in a duration such as "44s", "1m2.5s", "12h21m44.74s" or "500ms"."""
+    parts = re.findall(r"([\d.]+)(h|ms|m|s)", text)
+    if not parts or "".join(n + u for n, u in parts) != text:
+        return None
+    scale = {"h": 3600, "m": 60, "s": 1, "ms": 0.001}
+    try:
+        return sum(float(n) * scale[u] for n, u in parts)
+    except ValueError:
+        return None
+
+
+def gemini_retry_delay(err_json: dict) -> Optional[float]:
+    """How long Gemini asks to wait, in seconds, or None when it does not say.
+
+    Google puts it in a RetryInfo detail ("retryDelay": "44s") and repeats it
+    in the message ("Please retry in 12h21m44.74s.").
+    """
+    error = err_json.get("error", {}) if isinstance(err_json, dict) else {}
+    for detail in error.get("details") or []:
+        if isinstance(detail, dict) and str(detail.get("@type", "")).endswith("RetryInfo"):
+            delay = parse_duration(str(detail.get("retryDelay", "")))
+            if delay is not None:
+                return delay
+    match = re.search(r"retry in ([\d.hms]+?)\.?(?:\s|$)", str(error.get("message", "")))
+    return parse_duration(match.group(1)) if match else None
+
+
 class AiCommentaryRequest(BaseModel):
     fen: str
     turn: str
@@ -384,17 +433,28 @@ class AiCommentaryRequest(BaseModel):
     explanation: Optional[str] = None
     verbal_verdict: Optional[str] = None
     custom_api_key: Optional[str] = None
+    model: Optional[str] = GEMINI_MODEL_FIELD
 
 
 class AiCommentaryResponse(BaseModel):
     success: bool
     commentary: str
-    model: str = "gemini-3.8-flash"
+    model: str = DEFAULT_GEMINI_MODEL
     error: Optional[str] = None
+    # Seconds to wait before asking Gemini again, when it refused for load or quota.
+    retry_after_seconds: Optional[int] = None
 
 
 class GeminiError(Exception):
-    """A Gemini request failed; the message is ready to show to the user."""
+    """A Gemini request failed; the message is ready to show to the user.
+
+    retry_after_seconds is set when Gemini was busy or the quota ran out:
+    how long the user should wait before the next request.
+    """
+
+    def __init__(self, message: str, retry_after_seconds: Optional[int] = None):
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
 
 
 def get_gemini_key(custom_api_key: Optional[str]) -> Optional[str]:
@@ -411,14 +471,17 @@ GEMINI_KEY_MISSING = (
 )
 
 
-async def call_gemini(api_key: str, body: dict, timeout: float = 20.0) -> tuple:
+async def call_gemini(
+    api_key: str, body: dict, timeout: float = 20.0, model: Optional[str] = None
+) -> tuple:
     """Sends a generateContent request and returns (response JSON, model name).
 
-    Retries on 503 (overload) and 429 (rate limit) with growing pauses.
+    Retries on 503 (overload) and 429 (rate limit) with growing pauses, except
+    when Gemini names its own wait: retrying sooner would only be refused again.
     Raises GeminiError when the request cannot be completed.
     """
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip()
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    model_name = model or default_gemini_model()
+    url = f"{GEMINI_API_URL}/models/{model_name}:generateContent?key={api_key}"
 
     # Retryable HTTP status codes: 503 = overload, 429 = rate limit
     RETRYABLE = {503, 429}
@@ -435,14 +498,17 @@ async def call_gemini(api_key: str, body: dict, timeout: float = 20.0) -> tuple:
                 # Parse error message from JSON if available
                 err_detail = resp.text
                 google_message = None
+                retry_delay = None
                 try:
                     err_json = resp.json()
                     google_message = err_json.get("error", {}).get("message")
                     err_detail = google_message or err_detail
+                    retry_delay = gemini_retry_delay(err_json)
                 except Exception:
                     pass
 
-                if resp.status_code in RETRYABLE and attempt < MAX_RETRIES:
+                google_waits = resp.status_code in RETRYABLE and retry_delay is not None
+                if resp.status_code in RETRYABLE and attempt < MAX_RETRIES and not google_waits:
                     # Exponential backoff: 2s, 4s before next retry
                     await asyncio.sleep(2 * attempt)
                     continue
@@ -451,16 +517,19 @@ async def call_gemini(api_key: str, body: dict, timeout: float = 20.0) -> tuple:
                 # different things from the user (wait, or check the quota),
                 # and Google's own message says which, so it is passed on.
                 google_says = f" Gemini said: {google_message}" if google_message else ""
+                tried = f"Tried {attempt} time{'s' if attempt > 1 else ''}."
                 if resp.status_code == 503:
                     raise GeminiError(
                         "Gemini servers are temporarily overloaded. "
-                        "Please wait a moment and try again, or set GEMINI_MODEL in backend/.env "
-                        f"to another model. (Tried {MAX_RETRIES} times.){google_says}"
+                        "Please wait a moment and try again, or choose another model. "
+                        f"({tried}){google_says}",
+                        math.ceil(retry_delay) if google_waits else OVERLOAD_PAUSE_SECONDS,
                     )
                 if resp.status_code == 429:
                     raise GeminiError(
                         "Gemini refused the request: too many requests, or the API key's quota "
-                        f"is used up. (Tried {MAX_RETRIES} times.){google_says}"
+                        f"for this model is used up. ({tried}){google_says}",
+                        math.ceil(retry_delay) if google_waits else RATE_LIMIT_PAUSE_SECONDS,
                     )
                 raise GeminiError(f"Gemini API error ({resp.status_code}): {err_detail}")
     except GeminiError:
@@ -487,6 +556,66 @@ def first_candidate_text(data: dict) -> Optional[str]:
         return None
     parts = candidates[0].get("content", {}).get("parts") or [{}]
     return parts[0].get("text", "").strip()
+
+
+class GeminiModelsRequest(BaseModel):
+    custom_api_key: Optional[str] = None
+
+
+class GeminiModelsResponse(BaseModel):
+    success: bool
+    models: List[str] = []
+    default_model: str
+    error: Optional[str] = None
+
+
+# Models that answer generateContent but cannot write text about a picture.
+NOT_FOR_TEXT = ("embedding", "tts", "audio", "live", "image")
+
+
+@app.post("/api/gemini-models", response_model=GeminiModelsResponse)
+async def list_gemini_models(payload: GeminiModelsRequest):
+    """The Gemini models this API key can use, for the model picker.
+
+    Each model has its own free-tier quota, so another model is the way out
+    when one is used up. Listing models does not count against that quota.
+    """
+    default_model = default_gemini_model()
+    api_key = get_gemini_key(payload.custom_api_key)
+    if not api_key:
+        return GeminiModelsResponse(success=False, default_model=default_model, error=GEMINI_KEY_MISSING)
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(f"{GEMINI_API_URL}/models", params={"key": api_key, "pageSize": 1000})
+    except httpx.HTTPError as e:
+        return GeminiModelsResponse(
+            success=False,
+            default_model=default_model,
+            error=f"Could not reach the Gemini API ({str(e) or type(e).__name__}).",
+        )
+
+    if resp.status_code != 200:
+        try:
+            detail = resp.json().get("error", {}).get("message") or resp.text
+        except Exception:
+            detail = resp.text
+        return GeminiModelsResponse(
+            success=False,
+            default_model=default_model,
+            error=f"Gemini API error ({resp.status_code}): {detail}",
+        )
+
+    models = []
+    for entry in resp.json().get("models", []):
+        model_id = str(entry.get("name", "")).removeprefix("models/")
+        if (
+            model_id.startswith("gemini")
+            and "generateContent" in entry.get("supportedGenerationMethods", [])
+            and not any(word in model_id for word in NOT_FOR_TEXT)
+        ):
+            models.append(model_id)
+    return GeminiModelsResponse(success=True, models=sorted(set(models)), default_model=default_model)
 
 
 @app.post("/api/ai-commentary", response_model=AiCommentaryResponse)
@@ -518,9 +647,15 @@ Instructions:
     }
 
     try:
-        data, model_name = await call_gemini(api_key, body)
+        data, model_name = await call_gemini(api_key, body, model=payload.model)
     except GeminiError as e:
-        return AiCommentaryResponse(success=False, commentary="", error=str(e))
+        return AiCommentaryResponse(
+            success=False,
+            commentary="",
+            model=payload.model or default_gemini_model(),
+            error=str(e),
+            retry_after_seconds=e.retry_after_seconds,
+        )
 
     text = first_candidate_text(data)
     if text is None:
@@ -553,6 +688,7 @@ class RecognizeImageRequest(BaseModel):
     image_base64: str = Field(..., description="Image bytes as base64, with or without a data: URL prefix")
     mime_type: str = Field(..., description="Image MIME type, e.g. image/png")
     custom_api_key: Optional[str] = None
+    model: Optional[str] = GEMINI_MODEL_FIELD
 
 
 class RecognizeImageResponse(BaseModel):
@@ -564,6 +700,8 @@ class RecognizeImageResponse(BaseModel):
     is_valid: bool = False
     model: Optional[str] = None
     error: Optional[str] = None
+    # Seconds to wait before asking Gemini again, when it refused for load or quota.
+    retry_after_seconds: Optional[int] = None
 
 
 def decode_image(image_base64: str, mime_type: str) -> bytes:
@@ -654,9 +792,14 @@ async def recognize_image(payload: RecognizeImageRequest):
 
     try:
         # Reading an image takes Gemini much longer than writing commentary
-        data, model_name = await call_gemini(api_key, body, timeout=120.0)
+        data, model_name = await call_gemini(api_key, body, timeout=120.0, model=payload.model)
     except GeminiError as e:
-        return RecognizeImageResponse(success=False, error=str(e))
+        return RecognizeImageResponse(
+            success=False,
+            model=payload.model or default_gemini_model(),
+            error=str(e),
+            retry_after_seconds=e.retry_after_seconds,
+        )
 
     text = first_candidate_text(data)
     if not text:

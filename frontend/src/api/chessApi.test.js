@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { analyzeFen, checkBackendHealth, getAiCommentary, recognizeImage } from './chessApi';
+import {
+  analyzeFen,
+  checkBackendHealth,
+  getAiCommentary,
+  listGeminiModels,
+  recognizeImage,
+} from './chessApi';
 
 // A stand-in for the browser's fetch: every test decides what the "server"
 // answers, and can then inspect what the client sent.
@@ -125,6 +131,22 @@ describe('getAiCommentary', () => {
     expect(sentBody()).not.toHaveProperty('custom_api_key');
   });
 
+  it('sends the chosen Gemini model', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }));
+
+    await getAiCommentary({ ...request, model: 'gemini-2.5-flash-lite' });
+
+    expect(sentBody().model).toBe('gemini-2.5-flash-lite');
+  });
+
+  it('leaves the model out for the server default', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }));
+
+    await getAiCommentary({ ...request, model: '' });
+
+    expect(sentBody()).not.toHaveProperty('model');
+  });
+
   it("throws the server's error detail", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ detail: 'field required' }, { status: 422 }));
 
@@ -161,6 +183,16 @@ describe('recognizeImage', () => {
     expect(sentBody()).not.toHaveProperty('custom_api_key');
   });
 
+  it('sends the chosen Gemini model, or none for the server default', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }));
+
+    await recognizeImage({ ...request, model: 'gemini-2.5-flash-lite' });
+    await recognizeImage({ ...request, model: '' });
+
+    expect(sentBody(0).model).toBe('gemini-2.5-flash-lite');
+    expect(sentBody(1)).not.toHaveProperty('model');
+  });
+
   it("throws the server's error detail", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ detail: 'Image is larger than 10 MB.' }, { status: 413 })
@@ -173,5 +205,33 @@ describe('recognizeImage', () => {
     fetchMock.mockResolvedValue(brokenResponse(502));
 
     await expect(recognizeImage(request)).rejects.toThrow('Server error: 502');
+  });
+});
+
+describe('listGeminiModels', () => {
+  it('asks for the models with the user key', async () => {
+    const answer = { success: true, models: ['gemini-3.8-flash'], default_model: 'gemini-3.8-flash' };
+    fetchMock.mockResolvedValue(jsonResponse(answer));
+
+    const result = await listGeminiModels({ custom_api_key: 'user-key' });
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/gemini-models');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(sentBody()).toEqual({ custom_api_key: 'user-key' });
+    expect(result).toEqual(answer);
+  });
+
+  it('leaves the key out when the user has not set one', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true, models: [] }));
+
+    await listGeminiModels({ custom_api_key: '' });
+
+    expect(sentBody()).toEqual({});
+  });
+
+  it('throws the status code when the error body is not JSON', async () => {
+    fetchMock.mockResolvedValue(brokenResponse(502));
+
+    await expect(listGeminiModels({})).rejects.toThrow('Server error: 502');
   });
 });

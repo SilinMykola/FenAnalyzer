@@ -343,6 +343,7 @@ class TestAiCommentary:
             "commentary": "Take the centre.",
             "model": "gemini-3.8-flash",
             "error": None,
+            "retry_after_seconds": None,
         }
 
     def test_sends_the_position_in_the_prompt(self, gemini, monkeypatch):
@@ -418,7 +419,8 @@ class TestAiCommentary:
         assert body["success"] is False
         assert "temporarily overloaded" in body["error"]
         assert "(Tried 3 times.)" in body["error"]
-        assert "GEMINI_MODEL" in body["error"]
+        assert "choose another model" in body["error"]
+        assert body["retry_after_seconds"] == 30
         assert len(gemini.requests) == 3
 
     def test_passes_on_what_gemini_said_about_an_overload(self, gemini, monkeypatch):
@@ -432,22 +434,76 @@ class TestAiCommentary:
 
     def test_tells_a_used_up_quota_from_an_overload(self, gemini, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "key")
-        quota = httpx.Response(
-            429,
-            json={"error": {"message": "You exceeded your current quota. Please retry in 41s."}},
-        )
+        quota = httpx.Response(429, json={"error": {"message": "You exceeded your current quota."}})
         gemini.reply(quota, quota, quota)
 
         body = ask()
 
         assert body["success"] is False
         assert "overloaded" not in body["error"]
-        assert "quota is used up" in body["error"]
+        assert "quota for this model is used up" in body["error"]
         assert "(Tried 3 times.)" in body["error"]
-        assert body["error"].endswith(
-            "Gemini said: You exceeded your current quota. Please retry in 41s."
-        )
+        assert body["error"].endswith("Gemini said: You exceeded your current quota.")
+        # Gemini named no wait, so the default pause applies.
+        assert body["retry_after_seconds"] == 60
         assert len(gemini.requests) == 3
+
+    def test_does_not_retry_when_gemini_names_its_own_wait(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        message = (
+            "You exceeded your current quota. * Quota exceeded for metric: "
+            "generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash "
+            "Please retry in 12h21m44.740443784s."
+        )
+        gemini.reply(httpx.Response(429, json={"error": {"message": message}}))
+
+        body = ask()
+
+        assert len(gemini.requests) == 1
+        assert gemini.sleeps == []
+        assert "(Tried 1 time.)" in body["error"]
+        assert body["retry_after_seconds"] == 12 * 3600 + 21 * 60 + 45
+
+    def test_takes_the_wait_from_gemini_retry_info(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(
+            httpx.Response(
+                429,
+                json={
+                    "error": {
+                        "message": "Resource has been exhausted.",
+                        "details": [
+                            {"@type": "type.googleapis.com/google.rpc.QuotaFailure"},
+                            {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "44s"},
+                        ],
+                    }
+                },
+            )
+        )
+
+        body = ask()
+
+        assert body["retry_after_seconds"] == 44
+        assert len(gemini.requests) == 1
+
+    def test_asks_the_chosen_model(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        monkeypatch.setenv("GEMINI_MODEL", "gemini-server-default")
+        gemini.reply(gemini_reply())
+
+        body = ask(model="gemini-2.5-flash-lite")
+
+        assert gemini.requests[0].url.path == "/v1beta/models/gemini-2.5-flash-lite:generateContent"
+        assert body["model"] == "gemini-2.5-flash-lite"
+
+    @pytest.mark.parametrize("model", ["../evil", "gemini?key=x", "Gemini Pro", "a/b"])
+    def test_refuses_a_model_name_that_is_not_plain(self, gemini, monkeypatch, model):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+
+        response = client.post("/api/ai-commentary", json={**COMMENTARY_REQUEST, "model": model})
+
+        assert response.status_code == 422
+        assert gemini.requests == []
 
     def test_does_not_retry_other_errors(self, gemini, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "key")
@@ -545,3 +601,101 @@ class TestCors:
     )
     def test_refuses_other_sites(self, origin):
         assert self.allowed_origin(origin) is None
+
+
+class TestGeminiModels:
+    def models_reply(self, *entries):
+        return httpx.Response(200, json={"models": list(entries)})
+
+    def model(self, name, methods=("generateContent",)):
+        return {"name": f"models/{name}", "supportedGenerationMethods": list(methods)}
+
+    def test_needs_an_api_key(self, gemini):
+        body = client.post("/api/gemini-models", json={}).json()
+
+        assert body["success"] is False
+        assert body["default_model"] == "gemini-3.8-flash"
+        assert gemini.requests == []
+
+    def test_lists_the_models_that_can_write_text(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(
+            self.models_reply(
+                self.model("gemini-3.8-flash"),
+                self.model("gemini-2.5-flash-lite"),
+                self.model("gemini-embedding-001", ["embedContent"]),
+                self.model("gemini-2.5-flash-preview-tts"),
+                self.model("gemini-2.5-flash-image"),
+                self.model("gemma-3-27b-it"),
+            )
+        )
+
+        body = client.post("/api/gemini-models", json={"custom_api_key": "user-key"}).json()
+
+        assert body == {
+            "success": True,
+            "models": ["gemini-2.5-flash-lite", "gemini-3.8-flash"],
+            "default_model": "gemini-3.8-flash",
+            "error": None,
+        }
+        assert gemini.requests[0].url.path == "/v1beta/models"
+        assert gemini.requests[0].url.params["key"] == "user-key"
+
+    def test_reports_the_server_default_model(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        monkeypatch.setenv("GEMINI_MODEL", "gemini-test")
+        gemini.reply(self.models_reply())
+
+        assert client.post("/api/gemini-models", json={}).json()["default_model"] == "gemini-test"
+
+    def test_reports_an_error_from_gemini(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(httpx.Response(400, json={"error": {"message": "API key not valid"}}))
+
+        body = client.post("/api/gemini-models", json={}).json()
+
+        assert body["success"] is False
+        assert body["error"] == "Gemini API error (400): API key not valid"
+
+    def test_reports_a_network_failure(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(httpx.ConnectError("no route"))
+
+        body = client.post("/api/gemini-models", json={}).json()
+
+        assert body["success"] is False
+        assert "Could not reach the Gemini API (no route)" in body["error"]
+
+
+class TestRetryDelay:
+    @pytest.mark.parametrize(
+        "text, seconds",
+        [
+            ("44s", 44),
+            ("1m2.5s", 62.5),
+            ("12h21m44.5s", 12 * 3600 + 21 * 60 + 44.5),
+            ("500ms", 0.5),
+            ("", None),
+            ("soon", None),
+            ("44", None),
+        ],
+    )
+    def test_parse_duration(self, text, seconds):
+        assert main.parse_duration(text) == seconds
+
+    def test_reads_the_delay_from_the_message(self):
+        err = {"error": {"message": "Quota exceeded. Please retry in 41.2s."}}
+        assert main.gemini_retry_delay(err) == 41.2
+
+    def test_prefers_retry_info_over_the_message(self):
+        err = {
+            "error": {
+                "message": "Please retry in 41s.",
+                "details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "40s"}],
+            }
+        }
+        assert main.gemini_retry_delay(err) == 40
+
+    def test_no_delay_when_gemini_does_not_say(self):
+        assert main.gemini_retry_delay({"error": {"message": "overloaded"}}) is None
+        assert main.gemini_retry_delay({}) is None

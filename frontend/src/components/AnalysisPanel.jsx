@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatCountdown } from '../hooks/useGeminiCooldown';
 
 export default function AnalysisPanel({
   analysis,
@@ -9,6 +10,7 @@ export default function AnalysisPanel({
   aiError,
   customApiKey,
   onSaveCustomApiKey,
+  aiWaitSeconds = 0,
   variationPreview,
   onPreviewVariation,
 }) {
@@ -121,13 +123,19 @@ export default function AnalysisPanel({
               type="button"
               className="btn btn-ai-ask"
               onClick={onAskGrandmaster}
-              disabled={aiLoading || !bestLine}
-              title="Generate natural language explanation from Google Gemini"
+              disabled={aiLoading || !bestLine || aiWaitSeconds > 0}
+              title={
+                aiWaitSeconds > 0
+                  ? 'Gemini asked to wait before the next request; or choose another model at the top'
+                  : 'Generate natural language explanation from Google Gemini'
+              }
             >
               {aiLoading ? (
                 <>
                   <span className="spinner ai-spinner"></span> Thinking...
                 </>
+              ) : aiWaitSeconds > 0 ? (
+                `⏳ Ask again in ${formatCountdown(aiWaitSeconds)}`
               ) : (
                 '🤖 Ask Grandmaster'
               )}

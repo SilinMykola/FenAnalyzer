@@ -1981,3 +1981,44 @@ body {
     height: 160px;
   }
 }
+
+/* Gemini model picker in the header */
+.model-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card-bg);
+  padding: 4px 6px 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--card-border);
+  font-size: 0.82rem;
+}
+
+.model-picker-label {
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.model-picker select {
+  max-width: 220px;
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.model-picker select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+/* Countdown next to Try Again while Gemini asks to wait */
+.image-wait {
+  align-self: center;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}

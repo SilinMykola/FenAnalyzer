@@ -112,9 +112,29 @@ class TestGeminiRequest:
             "fen": None,
             "turn_detected": False,
             "is_valid": False,
-            "model": None,
+            "model": "gemini-3.8-flash",
             "error": "Gemini API error (400): API key not valid",
+            "retry_after_seconds": None,
         }
+
+    def test_asks_the_chosen_model(self, gemini, with_key):
+        gemini.reply(httpx.Response(400, json={"error": {"message": "nope"}}))
+
+        body = recognize(model="gemini-other").json()
+
+        assert gemini.requests[0].url.path == "/v1beta/models/gemini-other:generateContent"
+        assert body["model"] == "gemini-other"
+
+    def test_says_how_long_to_wait_when_the_quota_is_used_up(self, gemini, with_key):
+        gemini.reply(
+            httpx.Response(429, json={"error": {"message": "Quota exceeded. Please retry in 12h21m44.74s."}})
+        )
+
+        body = recognize().json()
+
+        assert body["success"] is False
+        assert body["retry_after_seconds"] == 12 * 3600 + 21 * 60 + 45
+        assert len(gemini.requests) == 1
 
     def test_gives_gemini_two_minutes_to_read_the_image(self, gemini, with_key):
         gemini.reply(httpx.ReadTimeout(""))
