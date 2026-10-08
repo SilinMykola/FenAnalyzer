@@ -128,6 +128,45 @@ describe('BoardEditor placing pieces', () => {
     }
   });
 
+  it('takes a piece away on a second click with the same piece', async () => {
+    const user = userEvent.setup();
+    renderEditor(KINGS_FEN);
+    await user.click(screen.getByTitle('Select White Knight'));
+
+    clickSquare('f3');
+    expect(chessboardProps().position.f3).toBe('wN');
+
+    clickSquare('f3');
+    expect(chessboardProps().position.f3).toBeUndefined();
+    expect(fenBox()).toHaveValue(KINGS_FEN);
+
+    // The knight is still selected, so a third click puts it back.
+    clickSquare('f3');
+    expect(chessboardProps().position.f3).toBe('wN');
+  });
+
+  it('takes away a piece already standing there when it is clicked with that piece', async () => {
+    const user = userEvent.setup();
+    renderEditor(START_FEN);
+
+    await user.click(screen.getByTitle('Select White Knight'));
+    clickSquare('g1');
+
+    expect(chessboardProps().position.g1).toBeUndefined();
+  });
+
+  it('replaces a piece of another kind or colour instead of taking it away', async () => {
+    const user = userEvent.setup();
+    renderEditor(START_FEN);
+
+    await user.click(screen.getByTitle('Select White Knight'));
+    clickSquare('f1');
+    clickSquare('g8');
+
+    expect(chessboardProps().position.f1).toBe('wN');
+    expect(chessboardProps().position.g8).toBe('wN');
+  });
+
   it('removes a piece on a click with no tool selected', () => {
     renderEditor(START_FEN);
 

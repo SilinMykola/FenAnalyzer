@@ -68,10 +68,13 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
   const positionError = getPositionError(fen);
 
   const handleSquareClick = (square) => {
-    if (selectedTool && selectedTool !== 'trash') {
+    const placing = selectedTool && selectedTool !== 'trash';
+    if (placing && position[square] !== selectedTool) {
       setPosition((prev) => placePiece(prev, square, selectedTool));
     } else if (position[square]) {
-      // The eraser, or a click with no tool selected, removes the piece.
+      // The eraser, or a click with no tool selected, removes the piece. So
+      // does a click with the very piece that stands there: the first click
+      // puts a piece down, a second one on the same square takes it away.
       setPosition((prev) => {
         const next = { ...prev };
         delete next[square];

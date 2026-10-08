@@ -64,6 +64,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - Dedicated **Board Editor tab** for building any custom chess position from scratch
 - **Piece palette** — click to select White ♔♕♖♗♘♙ or Black ♚♛♜♝♞♟ pieces, then place them on any square; large buttons with the colour label and all tools on a single row
 - **Build from an empty board** — clear the board and place pieces one by one; placing a king moves that side's existing king, so each side always has at most one
+- **Click again to take it away** — with a piece selected, clicking a square that already holds that same piece removes it: the first click puts a white knight down, the second takes it off. A piece of another kind or colour is replaced as before
 - **Eraser tool** — available in both palettes; click squares to remove individual pieces (a click with no tool selected removes a piece too)
 - **Drag & drop** — rearrange existing pieces freely on the board
 - **Flip Board** — turn the board over; the palettes swap with it so each colour stays next to its own side
