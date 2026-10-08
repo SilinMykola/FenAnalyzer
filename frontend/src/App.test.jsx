@@ -395,6 +395,46 @@ describe('App board editor tab', () => {
     expect(screen.getByLabelText('FEN Position')).toHaveValue(editedFen);
     await waitFor(() => expect(lastAnalyzedFen()).toBe(editedFen));
   });
+
+  // The position from the bug report: built in the editor, White to move.
+  const EDITOR_FEN = '4r1k1/p4pp1/7p/2Rp3q/4r1n1/3Q1NP1/PP3PP1/2R3K1 w - - 0 1';
+
+  async function analyzeInEditor(user, fen) {
+    await user.click(screen.getByRole('button', { name: /Board Editor/ }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: fen } });
+    await user.click(screen.getByRole('button', { name: /Analyze this Setup/ }));
+  }
+
+  it('puts the side to move at the bottom when the setup is analyzed', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    // The board was turned for Black by an earlier position.
+    fireEvent.change(screen.getByLabelText('FEN Position'), {
+      target: { value: '4k3/8/8/8/8/8/8/R3K3 b - - 0 1' },
+    });
+    expect(chessboardProps().boardOrientation).toBe('black');
+
+    await analyzeInEditor(user, EDITOR_FEN);
+
+    expect(chessboardProps().position).toBe(EDITOR_FEN);
+    expect(chessboardProps().boardOrientation).toBe('white');
+  });
+
+  it('lets the analyzed setup be played on', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    await analyzeInEditor(user, EDITOR_FEN);
+    let accepted;
+    act(() => {
+      accepted = chessboardProps().onPieceDrop('d3', 'd5', 'wQ');
+    });
+
+    expect(accepted).toBe(true);
+    expect(chessboardProps().position).toBe(
+      '4r1k1/p4pp1/7p/2RQ3q/4r1n1/5NP1/PP3PP1/2R3K1 b - - 0 1'
+    );
+  });
 });
 
 describe('App engine line preview', () => {

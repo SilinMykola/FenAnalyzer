@@ -499,7 +499,10 @@ export default function App() {
             initialFen={fen}
             onApplyFen={(newFen) => {
               setVariationPreview(null);
+              // The editor only lets a legal position through, so chess.js takes it.
+              gameRef.current.load(newFen);
               showPosition(newFen);
+              setOrientation(sideToMove(newFen));
               setActiveTab('fen');
               playMoveSound(false);
               triggerAnalysis(newFen);

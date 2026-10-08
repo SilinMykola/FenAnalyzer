@@ -36,6 +36,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 
 ### 📋 PGN Game Explorer
 - Import and parse games from **Chess.com** or **Lichess** (including custom starting FEN tournaments)
+- Once loaded, the board shows the final position with the side to move at the bottom
 - **Chess960 games** from Chess.com load too, as long as nobody castles: the castling rights Chess.com writes as rook files (`DAda`) are dropped, because the board cannot play Chess960 castling
 - **Chess.com-style scoresheet table** — moves displayed in a 3-column table (`#` / `⚪ White` / `⚫ Black`) with sticky header
 - **Active move highlighted** with a blue background and glow ring; table **auto-scrolls** to keep the current move in view
@@ -48,7 +49,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **Analyze a picture of a board** — a screenshot from Chess.com or Lichess, a book diagram or a photo
 - Three ways in, right under the FEN input: **paste with `Ctrl+V` / `⌘V`** anywhere on the FEN tab, the **Paste Image** button, or **Upload File** (drag & drop works too)
 - Google Gemini reads the pieces; the backend checks the result with python-chess, so a garbled answer is never put on the board
-- The recognized position appears on the board and in the FEN box and is **analyzed by Stockfish straight away**
+- The recognized position appears on the board and in the FEN box and is **analyzed by Stockfish straight away**, with the side to move at the bottom
 - **Side to move** is taken from the image when it shows it (a caption, a highlighted last move); otherwise White is assumed — or Black, when only that is legal — and the UI says it is a guess
 - **Castling rights** are granted wherever king and rook stand on their home squares
 - A misread piece can make the position illegal: it is then shown on a locked board, without analysis, with a **Fix in Board Editor** button
@@ -66,7 +67,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **Turn selector** — choose White or Black to move
 - **Live FEN output** — generated FEN updates in real-time as you edit; copy to clipboard with one click; type or paste a FEN into the box to load it onto the board
 - **Position validation** — tells you what to fix before analysis: missing kings, too many kings, pawns on the first or last rank, or the side not to move being in check; "Analyze" stays disabled until the position is legal
-- **Send to Stockfish** — instantly pass the custom position to the engine with one button
+- **Send to Stockfish** — instantly pass the custom position to the engine with one button; it opens on the analysis board with the side to move at the bottom, ready to be played on
 
 ### 🌗 Dark & Light Themes
 - **Theme toggle** (☀️ / 🌙) in the header next to the Stockfish status switches the whole site
@@ -77,7 +78,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **Drag-and-drop** piece movement with client-side legal move validation (`chess.js`)
 - **Audio feedback** — synthesized move and capture sounds via Web Audio API (no external files)
 - **Best-move arrow** — visual arrow overlay highlighting the engine's top recommendation
-- **Side to move at the bottom** — loading a position from a FEN, a PGN or an image turns the board so the side to move plays from below; moves played afterwards and stepping through a game leave it as it is, and **Reset Board** puts White back at the bottom
+- **Side to move at the bottom** — loading a position from a FEN, a PGN, an image or the Board Editor turns the board so the side to move plays from below; moves played afterwards and stepping through a game leave it as it is, and **Reset Board** puts White back at the bottom
 - **Board flip** — toggle perspective between White and Black at any time
 - **FEN paste / clear** — load any position directly from a FEN string
 - **Preset positions** — one-click historic games (Kasparov's Immortal, Fischer vs. Spassky, and more)
