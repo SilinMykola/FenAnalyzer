@@ -6,11 +6,12 @@ export default function BoardView({
   fen,
   bestMove,
   turn,
+  orientation = 'white',
+  onFlip,
   onPieceDrop,
   onPlayBestMove,
   isGameOver,
 }) {
-  const [orientation, setOrientation] = useState('white');
   const [moveFrom, setMoveFrom] = useState(null);
   const [optionSquares, setOptionSquares] = useState({});
   const [showArrow, setShowArrow] = useState(true);
@@ -46,10 +47,6 @@ export default function BoardView({
     return success;
   };
 
-  const toggleOrientation = () => {
-    setOrientation((prev) => (prev === 'white' ? 'black' : 'white'));
-  };
-
   return (
     <div className="card board-card">
       <div className="board-header">
@@ -65,7 +62,7 @@ export default function BoardView({
           <button
             type="button"
             className="btn-secondary"
-            onClick={toggleOrientation}
+            onClick={onFlip}
             title="Flip board orientation"
           >
             🔄 Flip ({orientation})

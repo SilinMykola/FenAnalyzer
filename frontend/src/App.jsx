@@ -13,6 +13,9 @@ import useTheme from './hooks/useTheme';
 
 const DEFAULT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
+// The colour whose turn it is in a FEN, as react-chessboard names orientations.
+const sideToMove = (fen) => (fen.split(' ')[1] === 'b' ? 'black' : 'white');
+
 export default function App() {
   // Mode: 'fen' or 'pgn'
   const [activeTab, setActiveTab] = useState('fen');
@@ -31,6 +34,10 @@ export default function App() {
     setFen(newFen);
     setFenInput(newFen);
   };
+
+  // Which side of the board is at the bottom. A position loaded from a FEN,
+  // a PGN or an image turns the board so the side to move plays from below.
+  const [orientation, setOrientation] = useState('white');
 
   // Engine controls
   const [depth, setDepth] = useState(16);
@@ -105,6 +112,7 @@ export default function App() {
     setError(null);
     try {
       gameRef.current.load(newFen);
+      setOrientation(sideToMove(newFen));
     } catch (e) {
       // Allow partial typing in input
     }
@@ -167,6 +175,7 @@ export default function App() {
     setPgnHeaders({});
     setCurrentMoveIndex(-1);
     pgnFensRef.current = [DEFAULT_FEN];
+    setOrientation('white');
     setImageRecognition({ status: 'idle' });
     setAiCommentary(null);
     setAiError(null);
@@ -248,6 +257,7 @@ export default function App() {
       const finalFen = fens[fens.length - 1];
       gameRef.current.load(finalFen);
       showPosition(finalFen);
+      setOrientation(sideToMove(finalFen));
       triggerAnalysis(finalFen);
       setError(null);
     } catch (err) {
@@ -336,6 +346,7 @@ export default function App() {
         // chess.js refuses an illegal position; the board stays locked until it is fixed.
       }
       showPosition(res.fen);
+      setOrientation(sideToMove(res.fen));
       setImageRecognition({
         status: 'done',
         fen: res.fen,
@@ -595,6 +606,8 @@ export default function App() {
                   fen={variationPreview ? variationPreview.previewFen : fen}
                   bestMove={variationPreview ? null : bestMove}
                   turn={analysis?.turn}
+                  orientation={orientation}
+                  onFlip={() => setOrientation((prev) => (prev === 'white' ? 'black' : 'white'))}
                   onPieceDrop={handlePieceDrop}
                   onPlayBestMove={handlePlayBestMove}
                   isGameOver={isGameOver || Boolean(variationPreview) || isIllegalImagePosition}

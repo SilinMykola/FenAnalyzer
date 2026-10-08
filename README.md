@@ -76,7 +76,8 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **Drag-and-drop** piece movement with client-side legal move validation (`chess.js`)
 - **Audio feedback** — synthesized move and capture sounds via Web Audio API (no external files)
 - **Best-move arrow** — visual arrow overlay highlighting the engine's top recommendation
-- **Board flip** — toggle perspective between White and Black
+- **Side to move at the bottom** — loading a position from a FEN, a PGN or an image turns the board so the side to move plays from below; moves played afterwards and stepping through a game leave it as it is, and **Reset Board** puts White back at the bottom
+- **Board flip** — toggle perspective between White and Black at any time
 - **FEN paste / clear** — load any position directly from a FEN string
 - **Preset positions** — one-click historic games (Kasparov's Immortal, Fischer vs. Spassky, and more)
 - **Play Best Move** — apply the engine's top recommendation with a single button

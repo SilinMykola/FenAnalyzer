@@ -51,15 +51,27 @@ describe('BoardView', () => {
     expect(screen.getByText('⚫ Black to move')).toBeInTheDocument();
   });
 
-  it('flips the board and back', async () => {
-    const user = userEvent.setup();
+  it('shows the board from the given side', () => {
+    renderBoard({ orientation: 'black' });
+
+    expect(chessboardProps().boardOrientation).toBe('black');
+    expect(screen.getByRole('button', { name: /Flip \(black\)/ })).toBeInTheDocument();
+  });
+
+  it('shows the board from White by default', () => {
     renderBoard();
 
-    await user.click(screen.getByRole('button', { name: /Flip \(white\)/ }));
-    expect(chessboardProps().boardOrientation).toBe('black');
-
-    await user.click(screen.getByRole('button', { name: /Flip \(black\)/ }));
     expect(chessboardProps().boardOrientation).toBe('white');
+  });
+
+  it('asks for a flip from its button', async () => {
+    const user = userEvent.setup();
+    const onFlip = vi.fn();
+    renderBoard({ onFlip });
+
+    await user.click(screen.getByRole('button', { name: /Flip \(white\)/ }));
+
+    expect(onFlip).toHaveBeenCalledTimes(1);
   });
 
   it('draws the best move as a green arrow', () => {

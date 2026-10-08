@@ -647,6 +647,133 @@ describe('App position from an image', () => {
   });
 });
 
+describe('App board orientation', () => {
+  const BLACK_TO_MOVE = '4k3/8/8/8/8/8/8/R3K3 b - - 0 1';
+  const WHITE_TO_MOVE = '4k3/8/8/8/8/8/8/R3K3 w - - 0 1';
+  const orientation = () => chessboardProps().boardOrientation;
+
+  async function loadPgn(user, pgn) {
+    await user.click(screen.getByRole('button', { name: 'PGN Game Explorer' }));
+    await user.click(screen.getByRole('button', { name: /Import \/ Paste PGN/ }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: pgn } });
+    await user.click(screen.getByRole('button', { name: 'Parse & Load Game' }));
+  }
+
+  it('starts with White at the bottom', async () => {
+    await renderApp();
+
+    expect(orientation()).toBe('white');
+  });
+
+  it('puts Black at the bottom for a pasted FEN with Black to move', async () => {
+    await renderApp();
+
+    fireEvent.change(screen.getByLabelText('FEN Position'), { target: { value: BLACK_TO_MOVE } });
+
+    expect(orientation()).toBe('black');
+  });
+
+  it('turns the board back for a FEN with White to move', async () => {
+    await renderApp();
+    const fenBox = screen.getByLabelText('FEN Position');
+    fireEvent.change(fenBox, { target: { value: BLACK_TO_MOVE } });
+
+    fireEvent.change(fenBox, { target: { value: WHITE_TO_MOVE } });
+
+    expect(orientation()).toBe('white');
+  });
+
+  it('leaves the board alone while a FEN is only half typed', async () => {
+    await renderApp();
+    const fenBox = screen.getByLabelText('FEN Position');
+    fireEvent.change(fenBox, { target: { value: BLACK_TO_MOVE } });
+
+    fireEvent.change(fenBox, { target: { value: '4k3/8/8' } });
+
+    expect(orientation()).toBe('black');
+  });
+
+  it('puts the side to move at the bottom after a PGN is loaded', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    // 1. e4 e5 2. Nf3 ends with Black to move.
+    await loadPgn(user, PGN);
+
+    expect(orientation()).toBe('black');
+  });
+
+  it('keeps White at the bottom for a PGN that ends with White to move', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    await loadPgn(user, '1. e4 e5 *');
+
+    expect(orientation()).toBe('white');
+  });
+
+  it('does not turn the board while stepping through a loaded game', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await loadPgn(user, PGN);
+
+    await user.click(screen.getByTitle(/Previous move/));
+
+    expect(chessboardProps().position).toBe(AFTER_E4_E5);
+    expect(orientation()).toBe('black');
+  });
+
+  it('puts the side to move at the bottom for a position read from an image', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockResolvedValue({
+      success: true,
+      fen: BLACK_TO_MOVE,
+      turn_detected: true,
+      is_valid: true,
+    });
+    await renderApp();
+
+    await user.upload(
+      screen.getByLabelText('Upload image file'),
+      new File(['png bytes'], 'board.png', { type: 'image/png' })
+    );
+
+    await screen.findByText(/Position recognized/);
+    expect(orientation()).toBe('black');
+  });
+
+  it('does not turn the board when a move is played on it', async () => {
+    await renderApp();
+
+    act(() => {
+      chessboardProps().onPieceDrop('e2', 'e4', 'wP');
+    });
+
+    expect(chessboardProps().position).toBe(AFTER_E4);
+    expect(orientation()).toBe('white');
+  });
+
+  it('can still be flipped by hand after a load', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    fireEvent.change(screen.getByLabelText('FEN Position'), { target: { value: BLACK_TO_MOVE } });
+
+    await user.click(screen.getByRole('button', { name: /Flip \(black\)/ }));
+
+    expect(orientation()).toBe('white');
+  });
+
+  it('puts White back at the bottom on Reset Board', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    fireEvent.change(screen.getByLabelText('FEN Position'), { target: { value: BLACK_TO_MOVE } });
+
+    await user.click(screen.getByRole('button', { name: /Reset Board/ }));
+
+    expect(orientation()).toBe('white');
+  });
+});
+
 describe('App theme', () => {
   it('switches between dark and light', async () => {
     const user = userEvent.setup();
