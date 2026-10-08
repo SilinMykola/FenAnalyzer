@@ -417,7 +417,36 @@ class TestAiCommentary:
 
         assert body["success"] is False
         assert "temporarily overloaded" in body["error"]
-        assert "(Tried 3 times)" in body["error"]
+        assert "(Tried 3 times.)" in body["error"]
+        assert "GEMINI_MODEL" in body["error"]
+        assert len(gemini.requests) == 3
+
+    def test_passes_on_what_gemini_said_about_an_overload(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        busy = httpx.Response(503, json={"error": {"message": "The model is overloaded."}})
+        gemini.reply(busy, busy, busy)
+
+        body = ask()
+
+        assert body["error"].endswith("Gemini said: The model is overloaded.")
+
+    def test_tells_a_used_up_quota_from_an_overload(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        quota = httpx.Response(
+            429,
+            json={"error": {"message": "You exceeded your current quota. Please retry in 41s."}},
+        )
+        gemini.reply(quota, quota, quota)
+
+        body = ask()
+
+        assert body["success"] is False
+        assert "overloaded" not in body["error"]
+        assert "quota is used up" in body["error"]
+        assert "(Tried 3 times.)" in body["error"]
+        assert body["error"].endswith(
+            "Gemini said: You exceeded your current quota. Please retry in 41s."
+        )
         assert len(gemini.requests) == 3
 
     def test_does_not_retry_other_errors(self, gemini, monkeypatch):

@@ -31,7 +31,8 @@ interactively, build custom positions, and get natural language grandmaster coac
 ### 🤖 Grandmaster AI Commentary (Google Gemini)
 - One-click **natural language coaching** from Google Gemini 3.8 Flash
 - Explains *why* the best engine move is strongest, outlines the strategic plan, and highlights key threats
-- **Retry logic** with exponential backoff for 503/429 rate-limit errors
+- **Retry logic** with exponential backoff for 503 (overloaded) and 429 (rate limit) errors; when all three tries fail, the error says which of the two it was and passes on Google's own message — for a used-up quota that usually includes how long to wait
+- **Model** is `gemini-3.8-flash` by default; set `GEMINI_MODEL` in `backend/.env` to use another one, e.g. when that model is overloaded
 - API key configurable via `backend/.env` or directly in the UI — no backend restart needed
 
 ### 📋 PGN Game Explorer

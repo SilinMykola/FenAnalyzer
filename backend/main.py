@@ -434,9 +434,11 @@ async def call_gemini(api_key: str, body: dict, timeout: float = 20.0) -> tuple:
 
                 # Parse error message from JSON if available
                 err_detail = resp.text
+                google_message = None
                 try:
                     err_json = resp.json()
-                    err_detail = err_json.get("error", {}).get("message", err_detail)
+                    google_message = err_json.get("error", {}).get("message")
+                    err_detail = google_message or err_detail
                 except Exception:
                     pass
 
@@ -445,12 +447,20 @@ async def call_gemini(api_key: str, body: dict, timeout: float = 20.0) -> tuple:
                     await asyncio.sleep(2 * attempt)
                     continue
 
-                # Non-retryable error or exhausted retries
-                if resp.status_code in RETRYABLE:
+                # Non-retryable error or exhausted retries. 503 and 429 need
+                # different things from the user (wait, or check the quota),
+                # and Google's own message says which, so it is passed on.
+                google_says = f" Gemini said: {google_message}" if google_message else ""
+                if resp.status_code == 503:
                     raise GeminiError(
                         "Gemini servers are temporarily overloaded. "
-                        "Please wait a moment and try again. "
-                        f"(Tried {MAX_RETRIES} times)"
+                        "Please wait a moment and try again, or set GEMINI_MODEL in backend/.env "
+                        f"to another model. (Tried {MAX_RETRIES} times.){google_says}"
+                    )
+                if resp.status_code == 429:
+                    raise GeminiError(
+                        "Gemini refused the request: too many requests, or the API key's quota "
+                        f"is used up. (Tried {MAX_RETRIES} times.){google_says}"
                     )
                 raise GeminiError(f"Gemini API error ({resp.status_code}): {err_detail}")
     except GeminiError:
