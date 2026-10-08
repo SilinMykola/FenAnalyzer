@@ -46,6 +46,20 @@ const PGN = `[White "Alice"]
 
 1. e4 e5 2. Nf3 1-0`;
 
+// A Chess960 game as Chess.com exports it: castling rights as rook files.
+const CHESS960_PGN = `[Event "Chess960"]
+[Site "Chess.com"]
+[White "Kolanimir"]
+[Black "Lucien093"]
+[Result "*"]
+[Variant "Chess960"]
+[SetUp "1"]
+[FEN "rbkrnqbn/pppppppp/8/8/8/8/PPPPPPPP/RBKRNQBN w DAda - 0 1"]
+[initialSetup "rbkrnqbn/pppppppp/8/8/8/8/PPPPPPPP/RBKRNQBN w DAda - 0 1"]
+
+1. f4 f5 2. Bd4 Nf6 3. c3 Bc4 4. d3 Bd5 *`;
+const CHESS960_FINAL = 'rbkr1q1n/ppppp1pp/5n2/3b1p2/3B1P2/2PP4/PP2P1PP/RBKRNQ1N w - - 1 5';
+
 // Every FEN the backend has been asked to analyze, in order.
 const analyzedFens = () => analyzeFen.mock.calls.map(([fen]) => fen);
 const lastAnalyzedFen = () => analyzedFens().at(-1);
@@ -259,6 +273,29 @@ describe('App PGN tab', () => {
     await loadPgn(user, '1. e4 e5 2. Ke3');
 
     expect(screen.getByText(/Failed to parse PGN/)).toBeInTheDocument();
+  });
+
+  it('loads a Chess960 game exported by Chess.com', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    await loadPgn(user, CHESS960_PGN);
+
+    expect(screen.queryByText(/Failed to parse PGN/)).not.toBeInTheDocument();
+    expect(document.querySelector('.pgn-counter')).toHaveTextContent('Move 8 / 8');
+    expect(chessboardProps().position).toBe(CHESS960_FINAL);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(CHESS960_FINAL));
+  });
+
+  it('explains that castling in a Chess960 game is not supported', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    await loadPgn(user, CHESS960_PGN.replace('4. d3 Bd5 *', '4. d3 Bd5 5. O-O *'));
+
+    expect(
+      screen.getByText(/Failed to parse PGN: castling in Chess960 games is not supported/)
+    ).toBeInTheDocument();
   });
 
   it('steps through the game with the buttons', async () => {

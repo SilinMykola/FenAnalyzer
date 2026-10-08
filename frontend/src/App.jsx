@@ -8,6 +8,7 @@ import BoardEditor from './components/BoardEditor';
 import ImageImport from './components/ImageImport';
 import { analyzeFen, checkBackendHealth, getAiCommentary, recognizeImage } from './api/chessApi';
 import { readImageAsBase64 } from './utils/imageFile';
+import { isChess960Pgn, withStandardCastlingPgn } from './utils/pgn';
 import { playMoveSound } from './utils/sound';
 import useTheme from './hooks/useTheme';
 
@@ -234,7 +235,7 @@ export default function App() {
   const handleLoadPgn = (pgnString) => {
     try {
       const pgnGame = new Chess();
-      pgnGame.loadPgn(pgnString);
+      pgnGame.loadPgn(withStandardCastlingPgn(pgnString));
 
       const headers = pgnGame.header();
       const history = pgnGame.history({ verbose: true });
@@ -261,7 +262,12 @@ export default function App() {
       triggerAnalysis(finalFen);
       setError(null);
     } catch (err) {
-      setError(`Failed to parse PGN: ${err.message}`);
+      const chess960Castling = isChess960Pgn(pgnString) && /O-O/.test(err.message);
+      setError(
+        chess960Castling
+          ? 'Failed to parse PGN: castling in Chess960 games is not supported'
+          : `Failed to parse PGN: ${err.message}`
+      );
     }
   };
 

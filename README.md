@@ -36,6 +36,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 
 ### 📋 PGN Game Explorer
 - Import and parse games from **Chess.com** or **Lichess** (including custom starting FEN tournaments)
+- **Chess960 games** from Chess.com load too, as long as nobody castles: the castling rights Chess.com writes as rook files (`DAda`) are dropped, because the board cannot play Chess960 castling
 - **Chess.com-style scoresheet table** — moves displayed in a 3-column table (`#` / `⚪ White` / `⚫ Black`) with sticky header
 - **Active move highlighted** with a blue background and glow ring; table **auto-scrolls** to keep the current move in view
 - **Game metadata** — displays player names, ELO ratings, event name, date, and color-coded result badge (`1–0` / `0–1` / `½–½`)
