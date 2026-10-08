@@ -14,6 +14,8 @@ const PASTE_HINT = 'press Ctrl+V / ⌘V to paste the image instead';
 export default function ImageImport({ onImage, recognition, onEditInEditor, onClear }) {
   // Object URL of the last image, shown as a thumbnail next to the result.
   const [previewUrl, setPreviewUrl] = useState(null);
+  // The last image sent, kept so a failed recognition can be tried again.
+  const [lastImage, setLastImage] = useState(null);
   // Problems found before anything is sent: wrong file type, empty clipboard.
   const [localError, setLocalError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
@@ -30,7 +32,14 @@ export default function ImageImport({ onImage, recognition, onEditInEditor, onCl
     }
     setLocalError(null);
     setPreviewUrl(URL.createObjectURL(file));
+    setLastImage(file);
     onImage(file);
+  };
+
+  // Sends the same image again, e.g. after Gemini was overloaded.
+  const handleRetry = () => {
+    if (recognizing || !lastImage) return;
+    onImage(lastImage);
   };
 
   // Free a thumbnail once it is replaced or the component goes away.
@@ -82,6 +91,7 @@ export default function ImageImport({ onImage, recognition, onEditInEditor, onCl
   // Forgets the image and any error or result; the board stays as it is.
   const handleClear = () => {
     setPreviewUrl(null);
+    setLastImage(null);
     setLocalError(null);
     onClear();
   };
@@ -95,6 +105,7 @@ export default function ImageImport({ onImage, recognition, onEditInEditor, onCl
 
   const error = localError || (recognition.status === 'error' ? recognition.error : null);
   const sideToMove = recognition.fen?.split(' ')[1] === 'b' ? 'Black' : 'White';
+  const canRetry = !localError && recognition.status === 'error' && Boolean(lastImage);
   const hasSomethingToClear = Boolean(previewUrl || localError || recognition.status !== 'idle');
 
   return (
@@ -164,6 +175,14 @@ export default function ImageImport({ onImage, recognition, onEditInEditor, onCl
           )}
 
           {error && <div className="image-error">⚠️ {error}</div>}
+
+          {canRetry && (
+            <div className="presets-buttons">
+              <button type="button" className="preset-btn" onClick={handleRetry}>
+                🔁 Try Again
+              </button>
+            </div>
+          )}
 
           {!localError && recognition.status === 'done' && recognition.isValid && (
             <div className="image-result">

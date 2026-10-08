@@ -322,3 +322,77 @@ describe('ImageImport clearing', () => {
     expect(clearButton()).toBeDisabled();
   });
 });
+
+describe('ImageImport trying again', () => {
+  const retryButton = () => screen.queryByRole('button', { name: /Try Again/ });
+  const OVERLOADED = { status: 'error', error: 'Gemini servers are temporarily overloaded.' };
+
+  it('sends the same image again after a failed recognition', async () => {
+    const user = userEvent.setup();
+    const { onImage, rerender } = renderImport();
+    const file = imageFile();
+    fireEvent.change(fileInput(), { target: { files: [file] } });
+    rerender(OVERLOADED);
+
+    await user.click(retryButton());
+
+    expect(onImage).toHaveBeenCalledTimes(2);
+    // File objects all look equal to a deep comparison, so check identity.
+    expect(onImage.mock.lastCall[0]).toBe(file);
+    // The thumbnail stays: it is still the same image.
+    expect(screen.getByAltText('Imported chess position')).toBeInTheDocument();
+  });
+
+  it('sends the latest image when several were given', async () => {
+    const user = userEvent.setup();
+    const { onImage, rerender } = renderImport();
+    const second = imageFile('second.png');
+    fireEvent.change(fileInput(), { target: { files: [imageFile('first.png')] } });
+    fireEvent.change(fileInput(), { target: { files: [second] } });
+    rerender(OVERLOADED);
+
+    await user.click(retryButton());
+
+    expect(onImage.mock.lastCall[0]).toBe(second);
+  });
+
+  it('is not offered before an image is sent', () => {
+    // An error App still holds from an image this component no longer has.
+    renderImport(OVERLOADED);
+
+    expect(retryButton()).not.toBeInTheDocument();
+  });
+
+  it('is not offered while the image is being read or once it is read', () => {
+    const { rerender } = renderImport();
+    fireEvent.change(fileInput(), { target: { files: [imageFile()] } });
+
+    rerender({ status: 'recognizing' });
+    expect(retryButton()).not.toBeInTheDocument();
+
+    rerender({ status: 'done', fen: '4k3/8/8/8/8/8/8/4K3 w - - 0 1', isValid: true });
+    expect(retryButton()).not.toBeInTheDocument();
+  });
+
+  it('is not offered for a file refused before sending', () => {
+    const { rerender } = renderImport();
+    fireEvent.change(fileInput(), { target: { files: [imageFile()] } });
+    rerender(OVERLOADED);
+
+    fireEvent.change(fileInput(), { target: { files: [imageFile('a.gif', 'image/gif')] } });
+
+    expect(retryButton()).not.toBeInTheDocument();
+  });
+
+  it('is gone once the image is cleared', async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderImport();
+    fireEvent.change(fileInput(), { target: { files: [imageFile()] } });
+    rerender(OVERLOADED);
+
+    await user.click(clearButton());
+    rerender(OVERLOADED);
+
+    expect(retryButton()).not.toBeInTheDocument();
+  });
+});

@@ -686,6 +686,24 @@ describe('App position from an image', () => {
     expect(chessboardProps().position).toBe(START_FEN);
   });
 
+  it('sends the same image again after Gemini was overloaded', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage)
+      .mockResolvedValueOnce({ success: false, error: 'Gemini servers are temporarily overloaded.' })
+      .mockResolvedValueOnce(recognized());
+    await renderApp();
+    await uploadScreenshot(user);
+    await screen.findByText('⚠️ Gemini servers are temporarily overloaded.');
+
+    await user.click(screen.getByRole('button', { name: /Try Again/ }));
+
+    expect(await screen.findByText(/Position recognized/)).toBeInTheDocument();
+    expect(recognizeImage).toHaveBeenCalledTimes(2);
+    expect(recognizeImage.mock.calls[1][0].image_base64).toBe(btoa('png bytes'));
+    expect(chessboardProps().position).toBe(RECOGNIZED);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(RECOGNIZED));
+  });
+
   it('shows a request failure', async () => {
     const user = userEvent.setup();
     vi.mocked(recognizeImage).mockRejectedValue(new Error('Image is larger than 10 MB.'));
