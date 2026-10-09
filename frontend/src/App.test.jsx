@@ -882,6 +882,163 @@ describe('App board orientation', () => {
   });
 });
 
+describe('App your moves since a loaded position', () => {
+  // The position from the user's image, Black to move, and two moves on it.
+  const IMAGE_FEN = 'r5k1/1Qp1bppp/1n1qp3/1B1p4/3P2b1/2P1P3/PP1N1PPP/R1B2RK1 b - - 4 19';
+  const AFTER_KH8 = 'r6k/1Qp1bppp/1n1qp3/1B1p4/3P2b1/2P1P3/PP1N1PPP/R1B2RK1 w - - 5 20';
+  const AFTER_H3 = 'r6k/1Qp1bppp/1n1qp3/1B1p4/3P2b1/2P1P2P/PP1N1PP1/R1B2RK1 b - - 0 20';
+  const AFTER_QXC7 = 'r6k/2Q1bppp/1n1qp3/1B1p4/3P2b1/2P1P3/PP1N1PPP/R1B2RK1 b - - 0 20';
+
+  const strip = () => screen.queryByLabelText('Your moves');
+  const move = (name) => within(strip()).getByRole('button', { name });
+  const drop = (from, to) => act(() => chessboardProps().onPieceDrop(from, to, 'xx'));
+
+  async function loadImagePosition(user) {
+    vi.mocked(recognizeImage).mockResolvedValue({
+      success: true,
+      fen: IMAGE_FEN,
+      turn_detected: true,
+      is_valid: true,
+    });
+    await user.upload(
+      screen.getByLabelText('Upload image file'),
+      new File(['png bytes'], 'board.png', { type: 'image/png' })
+    );
+    await screen.findByText(/Position recognized/);
+  }
+
+  async function playTwoMoves(user) {
+    await renderApp();
+    await loadImagePosition(user);
+    drop('g8', 'h8');
+    drop('h2', 'h3');
+  }
+
+  it('shows nothing until a move is played on a loaded position', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    await loadImagePosition(user);
+
+    expect(strip()).not.toBeInTheDocument();
+  });
+
+  it('lists the moves played since the image was read, with its FEN', async () => {
+    const user = userEvent.setup();
+
+    await playTwoMoves(user);
+
+    expect(move('19… Kh8')).toBeInTheDocument();
+    expect(move('20. h3')).toHaveAttribute('aria-current', 'step');
+    expect(within(strip()).getByText(IMAGE_FEN)).toBeInTheDocument();
+    expect(chessboardProps().position).toBe(AFTER_H3);
+  });
+
+  it('goes back to the position from the image and analyzes it', async () => {
+    const user = userEvent.setup();
+    await playTwoMoves(user);
+
+    await user.click(move('Start'));
+
+    expect(chessboardProps().position).toBe(IMAGE_FEN);
+    expect(screen.getByLabelText('FEN Position')).toHaveValue(IMAGE_FEN);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(IMAGE_FEN));
+    // The moves stay, so the user can go forward again.
+    await user.click(move('20. h3'));
+    expect(chessboardProps().position).toBe(AFTER_H3);
+  });
+
+  it('steps back and forth with the buttons', async () => {
+    const user = userEvent.setup();
+    await playTwoMoves(user);
+
+    await user.click(screen.getByTitle('Back one move'));
+    expect(chessboardProps().position).toBe(AFTER_KH8);
+
+    await user.click(screen.getByTitle('Back to the loaded position'));
+    expect(chessboardProps().position).toBe(IMAGE_FEN);
+
+    await user.click(screen.getByTitle('To your last move'));
+    expect(chessboardProps().position).toBe(AFTER_H3);
+  });
+
+  it('steps back and forth with the arrow keys on the FEN tab', async () => {
+    const user = userEvent.setup();
+    await playTwoMoves(user);
+    // Take the focus off the file input: keys typed into a field are not moves.
+    await user.click(move('20. h3'));
+
+    await user.keyboard('{ArrowLeft}{ArrowLeft}');
+    expect(chessboardProps().position).toBe(IMAGE_FEN);
+
+    // Nothing before the start.
+    await user.keyboard('{ArrowLeft}');
+    expect(chessboardProps().position).toBe(IMAGE_FEN);
+
+    await user.keyboard('{ArrowRight}');
+    expect(chessboardProps().position).toBe(AFTER_KH8);
+  });
+
+  it('lets moves be played again from a stepped-back position', async () => {
+    const user = userEvent.setup();
+    await playTwoMoves(user);
+    await user.click(move('19… Kh8'));
+
+    drop('b7', 'c7');
+
+    expect(chessboardProps().position).toBe(AFTER_QXC7);
+    expect(move('20. Qxc7')).toHaveAttribute('aria-current', 'step');
+    // The old continuation is replaced by the new one.
+    expect(within(strip()).queryByRole('button', { name: '20. h3' })).not.toBeInTheDocument();
+  });
+
+  it("adds the engine's best move to the list", async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    await user.click(screen.getByRole('button', { name: /Play Best Move/ }));
+
+    expect(move('1. e4')).toBeInTheDocument();
+    await user.click(move('Start'));
+    expect(chessboardProps().position).toBe(START_FEN);
+  });
+
+  it('adds the moves of an engine line played from the preview', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    const line = document.querySelector('.line-item');
+    await user.click(within(line).getByRole('button', { name: 'e5' }));
+
+    await user.click(screen.getByRole('button', { name: /Play from here/ }));
+
+    expect(move('1. e4')).toBeInTheDocument();
+    expect(move('1… e5')).toHaveAttribute('aria-current', 'step');
+  });
+
+  it('starts afresh when another position is loaded', async () => {
+    const user = userEvent.setup();
+    await playTwoMoves(user);
+
+    fireEvent.change(screen.getByLabelText('FEN Position'), {
+      target: { value: '4k3/8/8/8/8/8/8/R3K3 w - - 0 1' },
+    });
+
+    expect(strip()).not.toBeInTheDocument();
+    drop('a1', 'a7');
+    expect(move('1. Ra7')).toBeInTheDocument();
+    expect(within(strip()).getByText('4k3/8/8/8/8/8/8/R3K3 w - - 0 1')).toBeInTheDocument();
+  });
+
+  it('forgets the moves on Reset Board', async () => {
+    const user = userEvent.setup();
+    await playTwoMoves(user);
+
+    await user.click(screen.getByRole('button', { name: /Reset Board/ }));
+
+    expect(strip()).not.toBeInTheDocument();
+  });
+});
+
 describe('App Gemini model and pause', () => {
   const picker = () => screen.getByLabelText('Gemini model');
   const askButton = () => screen.getByRole('button', { name: /Ask Grandmaster|Ask again in/ });

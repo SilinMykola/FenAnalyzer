@@ -2033,3 +2033,78 @@ body {
 .model-picker-inline {
   padding: 2px 4px;
 }
+
+/* Moves played since a position was loaded, above the board */
+.move-line {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.move-line-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.move-line-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.move-line-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.move-line-nav .btn-vpb:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.move-line-moves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.move-chip {
+  background: var(--surface-raised);
+  border: 1px solid var(--card-border);
+  color: var(--text-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.move-chip:hover {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+.move-chip.active {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.move-line-start {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.move-line-start code {
+  color: var(--text-soft);
+}

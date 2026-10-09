@@ -89,6 +89,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **FEN paste / clear** — load any position directly from a FEN string
 - **Preset positions** — one-click historic games (Kasparov's Immortal, Fischer vs. Spassky, and more)
 - **Play Best Move** — apply the engine's top recommendation with a single button
+- **Your moves** — once you play a move on a loaded position (from a FEN, an image, the Board Editor or a PGN), a strip above the board lists your moves in scoresheet style (`19… Kh8 · 20. h3`) together with the FEN you started from. Click any move, or use **⏮ ◀ ▶ ⏭** or the **← / →** keys on the FEN tab, to step through them; **Start** / ⏮ takes you back to the loaded position, and each position is analyzed again. Playing a move from an earlier position starts a new branch and replaces the old continuation. Moves of an engine line played with **Play from here** and **Play Best Move** are listed too. Loading another position or **Reset Board** starts a new list
 - **Reset Board** — puts the starting position back on the board and empties the FEN box, ready for the next FEN
 
 ---
@@ -360,7 +361,8 @@ FenAnalyzer/
 │       │   ├── ImageImport.jsx     # Paste / upload / drop a board image for recognition
 │       │   ├── ModelPicker.jsx     # Gemini model dropdown (header and next to a countdown)
 │       │   ├── AnalysisPanel.jsx   # Evaluation · WDL bar · MultiPV lines · Gemini AI
-│       │   └── PgnViewer.jsx       # PGN import · move-by-move navigation · keyboard support
+│       │   ├── PgnViewer.jsx       # PGN import · move-by-move navigation · keyboard support
+│       │   └── MoveLine.jsx        # Your moves since a loaded position · step back and forth
 │       ├── hooks/
 │       │   ├── useTheme.js         # Dark/light theme state, persisted in localStorage
 │       │   └── useGeminiCooldown.js # Per-model pause and countdown after a Gemini refusal
@@ -368,6 +370,7 @@ FenAnalyzer/
 │       │   ├── editorFen.js        # Board editor FEN parsing, building & validation
 │       │   ├── imageFile.js        # Image type/size checks and base64 reading
 │       │   ├── pgn.js              # Chess960 castling rights made readable for chess.js
+│       │   ├── moveLine.js         # The list of your moves: add, branch, step, number
 │       │   └── sound.js            # Synthesized Web Audio sound effects
 │       ├── App.jsx                 # Top-level state orchestrator
 │       ├── index.css               # Theme tokens (dark & light) & component styles

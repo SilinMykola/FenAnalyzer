@@ -7,6 +7,7 @@ import PgnViewer from './components/PgnViewer';
 import BoardEditor from './components/BoardEditor';
 import ImageImport from './components/ImageImport';
 import ModelPicker from './components/ModelPicker';
+import MoveLine from './components/MoveLine';
 import {
   analyzeFen,
   checkBackendHealth,
@@ -16,6 +17,7 @@ import {
 } from './api/chessApi';
 import { readImageAsBase64 } from './utils/imageFile';
 import { isChess960Pgn, withStandardCastlingPgn } from './utils/pgn';
+import { addMove, goTo, shownFen, startLine } from './utils/moveLine';
 import { playMoveSound } from './utils/sound';
 import useTheme from './hooks/useTheme';
 import useGeminiCooldown from './hooks/useGeminiCooldown';
@@ -169,6 +171,22 @@ export default function App() {
   // Variation Preview state (for clicking moves in Stockfish engine lines)
   const [variationPreview, setVariationPreview] = useState(null);
 
+  // Moves played on the board since a position was loaded, so the user can
+  // step through them and get back to that position (see utils/moveLine).
+  const [moveLine, setMoveLine] = useState(() => startLine(DEFAULT_FEN));
+
+  // Shows a move of the line, or its start (-1), and analyzes it.
+  const handleGoToLineMove = (index) => {
+    const target = goTo(moveLine, index);
+    const targetFen = shownFen(target);
+    setMoveLine(target);
+    setVariationPreview(null);
+    gameRef.current.load(targetFen);
+    showPosition(targetFen);
+    playMoveSound(false);
+    triggerAnalysis(targetFen);
+  };
+
   // Handler for manual FEN update (e.g. typing or preset button)
   const handleFenChange = (newFen) => {
     setVariationPreview(null);
@@ -177,6 +195,7 @@ export default function App() {
     try {
       gameRef.current.load(newFen);
       setOrientation(sideToMove(newFen));
+      setMoveLine(startLine(newFen));
     } catch (e) {
       // Allow partial typing in input
     }
@@ -221,6 +240,14 @@ export default function App() {
   const handleApplyVariationAsCurrent = () => {
     if (!variationPreview) return;
     const targetFen = variationPreview.previewFen;
+    // The engine moves become the user's moves, so they can be stepped back.
+    const replay = new Chess(fen);
+    let line = moveLine;
+    for (let i = 0; i <= variationPreview.stepIndex; i++) {
+      const move = replay.move(variationPreview.moves[i]);
+      line = addMove(line, move.san, replay.fen());
+    }
+    setMoveLine(line);
     gameRef.current.load(targetFen);
     showPosition(targetFen);
     setVariationPreview(null);
@@ -239,6 +266,7 @@ export default function App() {
     setPgnHeaders({});
     setCurrentMoveIndex(-1);
     pgnFensRef.current = [DEFAULT_FEN];
+    setMoveLine(startLine(DEFAULT_FEN));
     setOrientation('white');
     setImageRecognition({ status: 'idle' });
     setAiCommentary(null);
@@ -263,6 +291,7 @@ export default function App() {
       playMoveSound(Boolean(move.captured));
       const newFen = gameRef.current.fen();
       showPosition(newFen);
+      setMoveLine((prev) => addMove(prev, move.san, newFen));
 
       // Auto-trigger Stockfish re-analysis
       triggerAnalysis(newFen);
@@ -287,6 +316,7 @@ export default function App() {
         playMoveSound(Boolean(move.captured));
         const newFen = gameRef.current.fen();
         showPosition(newFen);
+        setMoveLine((prev) => addMove(prev, move.san, newFen));
         triggerAnalysis(newFen);
       }
     } catch (e) {
@@ -322,6 +352,7 @@ export default function App() {
       gameRef.current.load(finalFen);
       showPosition(finalFen);
       setOrientation(sideToMove(finalFen));
+      setMoveLine(startLine(finalFen));
       triggerAnalysis(finalFen);
       setError(null);
     } catch (err) {
@@ -341,6 +372,7 @@ export default function App() {
     const targetFen = pgnFensRef.current[index + 1] || DEFAULT_FEN;
     gameRef.current.load(targetFen);
     showPosition(targetFen);
+    setMoveLine(startLine(targetFen));
     playMoveSound(false);
     triggerAnalysis(targetFen);
   };
@@ -421,6 +453,7 @@ export default function App() {
       }
       showPosition(res.fen);
       setOrientation(sideToMove(res.fen));
+      setMoveLine(startLine(res.fen));
       setImageRecognition({
         status: 'done',
         fen: res.fen,
@@ -453,24 +486,29 @@ export default function App() {
     }
   };
 
-  // Keyboard navigation for PGN stepping
+  // Keyboard navigation: through the game on the PGN tab, through the
+  // user's own moves on the FEN tab.
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (activeTab !== 'pgn' || pgnMoves.length === 0) return;
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      const step = e.key === 'ArrowLeft' ? -1 : 1;
 
-      if (e.key === 'ArrowLeft') {
+      if (activeTab === 'pgn' && pgnMoves.length > 0) {
         e.preventDefault();
-        handlePrevMove();
-      } else if (e.key === 'ArrowRight') {
+        if (step < 0) handlePrevMove();
+        else handleNextMove();
+      } else if (activeTab === 'fen' && moveLine.moves.length > 0) {
+        const index = moveLine.index + step;
+        if (index < -1 || index >= moveLine.moves.length) return;
         e.preventDefault();
-        handleNextMove();
+        handleGoToLineMove(index);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab, pgnMoves, currentMoveIndex]);
+  }, [activeTab, pgnMoves, currentMoveIndex, moveLine]);
 
   const bestMove = analysis?.lines?.[0]?.move_uci || null;
   const isGameOver = analysis?.is_checkmate || analysis?.is_stalemate || false;
@@ -573,6 +611,7 @@ export default function App() {
               gameRef.current.load(newFen);
               showPosition(newFen);
               setOrientation(sideToMove(newFen));
+              setMoveLine(startLine(newFen));
               setActiveTab('fen');
               playMoveSound(false);
               triggerAnalysis(newFen);
@@ -683,6 +722,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
+                <MoveLine line={moveLine} onGoTo={handleGoToLineMove} />
                 <BoardView
                   fen={variationPreview ? variationPreview.previewFen : fen}
                   bestMove={variationPreview ? null : bestMove}
