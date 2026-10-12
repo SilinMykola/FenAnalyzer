@@ -235,3 +235,47 @@ describe('listGeminiModels', () => {
     await expect(listGeminiModels({})).rejects.toThrow('Server error: 502');
   });
 });
+
+describe('errors that mean the server is not running', () => {
+  // Every request the app makes, called with arguments it accepts.
+  const requests = [
+    ['analyzeFen', () => analyzeFen('8/8/8/8/8/8/8/8 w - - 0 1')],
+    ['getAiCommentary', () => getAiCommentary({ fen: 'f', turn: 'white', score: '0', best_move_san: 'e4' })],
+    ['recognizeImage', () => recognizeImage({ image_base64: 'aGVsbG8=', mime_type: 'image/png' })],
+    ['listGeminiModels', () => listGeminiModels({})],
+  ];
+
+  it.each(requests)('%s explains that the server cannot be reached', async (_, call) => {
+    // What fetch does when nothing listens: the browser reports "Failed to fetch".
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    const error = await call().catch((e) => e);
+
+    expect(error.message).toBe(
+      "Cannot reach the app's server. Start the app with ./start.sh in the project folder, " +
+        'then reload this page.'
+    );
+  });
+
+  it.each(requests)('%s explains a bare 5xx from the proxy as the backend being down', async (_, call) => {
+    fetchMock.mockResolvedValue(brokenResponse(502));
+
+    await expect(call()).rejects.toThrow(
+      'Server error: 502 — the backend is not answering. Start the app with ./start.sh in the project folder.'
+    );
+  });
+
+  it('keeps the plain status for a client error without a JSON body', async () => {
+    fetchMock.mockResolvedValue(brokenResponse(404));
+
+    const error = await analyzeFen('f').catch((e) => e);
+
+    expect(error.message).toBe('Server error: 404');
+  });
+
+  it("keeps the backend's own 5xx error, which comes as JSON", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ detail: 'Stockfish crashed' }, { status: 500 }));
+
+    await expect(analyzeFen('f')).rejects.toThrow(/^Stockfish crashed$/);
+  });
+});

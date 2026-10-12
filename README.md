@@ -412,8 +412,19 @@ the unexpected pass, and the marker should be removed.
 
 | Key | Action |
 |---|---|
-| `←` | Previous move (PGN mode) |
-| `→` | Next move (PGN mode) |
+| `←` | Previous move (PGN mode); on the FEN tab, back one of your own moves |
+| `→` | Next move (PGN mode); on the FEN tab, forward one of your own moves |
+| `Ctrl+V` / `⌘V` | Paste an image of a board on the FEN tab |
+
+---
+
+## 🩺 Troubleshooting
+
+| Message | What it means | Fix |
+|---|---|---|
+| *Cannot reach the app's server …* | The page is open, but the dev server that serves it (Vite) is not running, so no request gets through | Start the app with `./start.sh` in the project folder, then reload the page |
+| *Server error: 500 — the backend is not answering …* | Vite is running, but the FastAPI backend behind it is not: Vite's proxy answers with an empty 500 | Start the app with `./start.sh` (or the backend alone, see Option B above) |
+| *Backend Offline* in the header | The health check at page load got no answer from the backend | Same as above, then reload the page |
 
 ---
 
