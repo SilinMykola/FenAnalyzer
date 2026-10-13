@@ -6,7 +6,7 @@ import math
 import os
 import re
 import shutil
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import chess
 import chess.engine
@@ -425,6 +425,11 @@ def gemini_retry_delay(err_json: dict) -> Optional[float]:
     return parse_duration(match.group(1)) if match else None
 
 
+class EngineLineForPrompt(BaseModel):
+    score: str
+    pv_san: List[str] = Field(default_factory=list, max_length=20)
+
+
 class AiCommentaryRequest(BaseModel):
     fen: str
     turn: str
@@ -434,6 +439,10 @@ class AiCommentaryRequest(BaseModel):
     verbal_verdict: Optional[str] = None
     custom_api_key: Optional[str] = None
     model: Optional[str] = GEMINI_MODEL_FIELD
+    # "move": why the best move is best. "evaluation": why the engine rates
+    # the position as it does, backed by its top lines.
+    focus: Literal["move", "evaluation"] = "move"
+    lines: List[EngineLineForPrompt] = Field(default_factory=list, max_length=5)
 
 
 class AiCommentaryResponse(BaseModel):
@@ -634,14 +643,9 @@ async def list_gemini_models(payload: GeminiModelsRequest):
     return GeminiModelsResponse(success=True, models=sorted(set(models)), default_model=default_model)
 
 
-@app.post("/api/ai-commentary", response_model=AiCommentaryResponse)
-async def generate_ai_commentary(payload: AiCommentaryRequest):
-    """Generates natural language grandmaster commentary using Gemini API."""
-    api_key = get_gemini_key(payload.custom_api_key)
-    if not api_key:
-        return AiCommentaryResponse(success=False, commentary="", error=GEMINI_KEY_MISSING)
-
-    prompt = f"""You are a distinguished FIDE Grandmaster and friendly chess coach.
+def move_prompt(payload: AiCommentaryRequest) -> str:
+    """Asks why the engine's best move is best and what the plan is."""
+    return f"""You are a distinguished FIDE Grandmaster and friendly chess coach.
 Explain the strategic and tactical essence of this position to an improving chess player:
 - Position (FEN): {payload.fen}
 - Turn to move: {payload.turn.capitalize()}
@@ -654,6 +658,49 @@ Instructions:
 3. Outline the immediate concrete plan for {payload.turn.capitalize()}.
 4. Do NOT output a raw FEN breakdown or lists of piece locations; focus directly on ideas and plans.
 5. Start straight with the assessment: no greeting, no headings, no Markdown. Plain prose only."""
+
+
+def evaluation_prompt(payload: AiCommentaryRequest) -> str:
+    """Asks why the engine rates the position as it does.
+
+    The engine's top lines go along as evidence, so the model explains what
+    they show instead of guessing at tactics; the material count is worked
+    out here, as models miscount pieces.
+    """
+    try:
+        material = calculate_material(chess.Board(payload.fen))
+        material_line = f"White {material.white} points, Black {material.black} points"
+    except ValueError:
+        material_line = "unknown"
+    lines = "\n".join(
+        f"  {i}. {line.score}: {' '.join(line.pv_san) or '(no moves)'}"
+        for i, line in enumerate(payload.lines, start=1)
+    ) or "  (none given)"
+    return f"""You are a distinguished FIDE Grandmaster and friendly chess coach.
+Stockfish rates this position at {payload.score} from White's point of view ({payload.verbal_verdict or 'N/A'}). Explain to an improving chess player WHY the position deserves this evaluation.
+- Position (FEN): {payload.fen}
+- Turn to move: {payload.turn.capitalize()}
+- Material: {material_line}
+- Stockfish's top lines (evaluation: moves):
+{lines}
+
+Instructions:
+1. Name the concrete reasons behind the evaluation: material, immediate threats and tactics, king safety, piece activity, pawn structure (passed pawns, weaknesses).
+2. When the material is level but the evaluation is not, say what outweighs it.
+3. Use the engine lines above as evidence: say what the main line wins, forces or threatens. Do not invent moves that are not in them.
+4. Answer in 3-6 sentences of plain prose: no greeting, no headings, no Markdown, no lists of piece locations."""
+
+
+@app.post("/api/ai-commentary", response_model=AiCommentaryResponse)
+async def generate_ai_commentary(payload: AiCommentaryRequest):
+    """Generates natural language grandmaster commentary using Gemini API."""
+    api_key = get_gemini_key(payload.custom_api_key)
+    if not api_key:
+        return AiCommentaryResponse(success=False, commentary="", error=GEMINI_KEY_MISSING)
+
+    prompt = (
+        evaluation_prompt(payload) if payload.focus == "evaluation" else move_prompt(payload)
+    )
 
     body = {
         "contents": [{"parts": [{"text": prompt}]}],

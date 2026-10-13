@@ -31,6 +31,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 ### 🤖 Grandmaster AI Commentary (Google Gemini)
 - One-click **natural language coaching** from Google Gemini 3.8 Flash
 - Explains *why* the best engine move is strongest, outlines the strategic plan, and highlights key threats
+- **💡 Why?** under the score asks a different question: *why* Stockfish rates the position as it does — material, threats, king safety, piece activity, pawn structure. Stockfish's top lines and the material count go along with the question, so the explanation rests on the engine's variations instead of guesses. The answer appears under the score and is dropped when the position changes; the button shares the model choice and the pause with the other Gemini requests
 - **Room to answer** — newer Gemini models think before they answer and that thinking counts against the output limit, so the limit is generous (8192 tokens) and the commentary may take up to a minute. If an answer still hits the limit, it ends with a note that it was cut off instead of stopping mid-sentence without a word
 - **Retry logic** with exponential backoff for 503 (overloaded) and 429 (rate limit) errors; when all three tries fail, the error says which of the two it was and passes on Google's own message — for a used-up quota that usually includes how long to wait
 - **Model picker** — the **🤖 Gemini** list in the header shows every model your API key can use (fetched from Google) and picks the one for both the commentary and reading images. The choice is remembered in the browser. The default is the server's model: `gemini-3.8-flash`, or `GEMINI_MODEL` from `backend/.env`
@@ -271,9 +272,13 @@ Generates grandmaster coaching commentary via Google Gemini.
   "best_move_san": "d4",
   "explanation": "Pawn moves to d4",
   "verbal_verdict": "Even position (balanced game)",
-  "model": "gemini-2.5-flash-lite"
+  "model": "gemini-2.5-flash-lite",
+  "focus": "evaluation",
+  "lines": [{ "score": "+0.37", "pv_san": ["d4", "Nf6", "c4"] }]
 }
 ```
+`focus` is `"move"` (the default: why the best move is best) or `"evaluation"` (why the position
+is rated so); `lines` are Stockfish's top lines, up to 5, sent along as evidence for an evaluation.
 `model` is optional; without it the server's default model is asked. Only plain model names
 (lowercase letters, digits, `.` and `-`) are accepted, anything else is rejected with `422`.
 

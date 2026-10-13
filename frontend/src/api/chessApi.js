@@ -64,6 +64,8 @@ export async function getAiCommentary({
   verbal_verdict,
   custom_api_key,
   model,
+  focus,
+  lines,
 }) {
   return postJson('/api/ai-commentary', {
     fen,
@@ -74,6 +76,9 @@ export async function getAiCommentary({
     verbal_verdict,
     custom_api_key: custom_api_key || undefined,
     model: model || undefined,
+    // "evaluation" asks why the position is rated so, backed by the lines.
+    focus: focus || undefined,
+    lines: lines || undefined,
   });
 }
 

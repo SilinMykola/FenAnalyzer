@@ -70,6 +70,9 @@ export default function App() {
   const [aiCommentary, setAiCommentary] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
+  // Gemini's answer to "why is the position rated so?":
+  // { status: 'idle' | 'loading' | 'done' | 'error', text, error }
+  const [evalExplanation, setEvalExplanation] = useState({ status: 'idle' });
   const [customApiKey, setCustomApiKey] = useState(() => {
     return localStorage.getItem('gemini_api_key') || '';
   });
@@ -153,6 +156,7 @@ export default function App() {
       // Clear previous position's AI commentary
       setAiCommentary(null);
       setAiError(null);
+      setEvalExplanation({ status: 'idle' });
 
       try {
         const data = await analyzeFen(fenToAnalyze, targetDepth, targetMultipv);
@@ -275,6 +279,7 @@ export default function App() {
     setImageRecognition({ status: 'idle' });
     setAiCommentary(null);
     setAiError(null);
+    setEvalExplanation({ status: 'idle' });
     setError(null);
     playMoveSound(false);
     triggerAnalysis(DEFAULT_FEN);
@@ -427,8 +432,41 @@ export default function App() {
     }
   };
 
-  // Reads the position in an image with Gemini, puts it on the board and,
-  // when it is legal, analyzes it.
+  // Asks Gemini why Stockfish rates the position as it does, sending the
+  // engine's top lines along as evidence.
+  const handleExplainEvaluation = async () => {
+    if (!analysis || !analysis.lines || analysis.lines.length === 0) return;
+    if (geminiWait > 0) return;
+
+    const topChoice = analysis.lines[0];
+    setEvalExplanation({ status: 'loading' });
+    try {
+      const res = await getAiCommentary({
+        fen,
+        turn: analysis.turn,
+        score: topChoice.score,
+        best_move_san: topChoice.move_san,
+        explanation: topChoice.explanation,
+        verbal_verdict: analysis.verbal_verdict,
+        custom_api_key: customApiKey,
+        model: geminiModel,
+        focus: 'evaluation',
+        lines: analysis.lines.map((line) => ({ score: line.score, pv_san: line.pv_san || [] })),
+      });
+      pauseGeminiAfter(res);
+      setEvalExplanation(
+        res.success
+          ? { status: 'done', text: res.commentary }
+          : { status: 'error', error: res.error || 'Failed to explain the evaluation' }
+      );
+    } catch (err) {
+      setEvalExplanation({
+        status: 'error',
+        error: err.message || 'Error communicating with AI endpoint',
+      });
+    }
+  };
+
   // Puts a position read from an image on the board and, when it is legal,
   // analyzes it; recognition holds what the box shows about it.
   const showRecognizedPosition = (recognition) => {
@@ -451,6 +489,7 @@ export default function App() {
       setAnalysis(null);
       setAiCommentary(null);
       setAiError(null);
+      setEvalExplanation({ status: 'idle' });
     }
   };
 
@@ -468,6 +507,7 @@ export default function App() {
     });
   };
 
+  // Reads the position in an image with Gemini and shows it.
   const handleImageSelected = async (file) => {
     setImageRecognition({ status: 'recognizing' });
     try {
@@ -772,6 +812,8 @@ export default function App() {
                   onSaveCustomApiKey={handleSaveCustomApiKey}
                   aiWaitSeconds={geminiWait}
                   modelPicker={geminiModelPicker}
+                  onExplainEvaluation={handleExplainEvaluation}
+                  evalExplanation={evalExplanation}
                   variationPreview={variationPreview}
                   onPreviewVariation={handlePreviewVariation}
                 />

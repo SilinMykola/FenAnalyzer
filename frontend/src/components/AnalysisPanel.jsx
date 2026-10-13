@@ -13,6 +13,8 @@ export default function AnalysisPanel({
   onSaveCustomApiKey,
   aiWaitSeconds = 0,
   modelPicker,
+  onExplainEvaluation,
+  evalExplanation = { status: 'idle' },
   variationPreview,
   onPreviewVariation,
 }) {
@@ -93,6 +95,25 @@ export default function AnalysisPanel({
             >
               {bestLine.score}
             </span>
+            {onExplainEvaluation && (
+              <button
+                type="button"
+                className="btn-explain-eval"
+                onClick={onExplainEvaluation}
+                disabled={evalExplanation.status === 'loading' || aiWaitSeconds > 0}
+                title={
+                  aiWaitSeconds > 0
+                    ? 'Gemini asked to wait before the next request; or choose another model'
+                    : 'Ask the Grandmaster why the position is rated so'
+                }
+              >
+                {evalExplanation.status === 'loading'
+                  ? 'Thinking…'
+                  : aiWaitSeconds > 0
+                  ? `⏳ Why? in ${formatCountdown(aiWaitSeconds)}`
+                  : '💡 Why?'}
+              </button>
+            )}
           </div>
 
           <div className="best-move-box">
@@ -105,6 +126,25 @@ export default function AnalysisPanel({
               <span className="best-move-explanation">⚡ {bestLine.explanation}</span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Why the position is rated so, from the Grandmaster */}
+      {bestLine && evalExplanation.status !== 'idle' && (
+        <div className="eval-explanation" aria-live="polite">
+          <span className="eval-explanation-title">💡 Why {bestLine.score}?</span>
+          {evalExplanation.status === 'loading' && (
+            <p className="eval-explanation-text">
+              <span className="spinner ai-spinner"></span> The Grandmaster is looking at the
+              position…
+            </p>
+          )}
+          {evalExplanation.status === 'done' && (
+            <p className="eval-explanation-text">{evalExplanation.text}</p>
+          )}
+          {evalExplanation.status === 'error' && (
+            <p className="eval-explanation-error">⚠️ {evalExplanation.error}</p>
+          )}
         </div>
       )}
 

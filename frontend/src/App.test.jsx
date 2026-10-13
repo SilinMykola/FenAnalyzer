@@ -1483,6 +1483,74 @@ describe('App Gemini model and pause', () => {
   });
 });
 
+describe('App explaining the evaluation', () => {
+  const whyButton = () => screen.getByRole('button', { name: /Why\?/ });
+
+  it('asks Gemini why the position is rated so, with the engine lines, and shows the answer', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getAiCommentary).mockResolvedValue({
+      success: true,
+      commentary: 'The centre is still open; both sides are fine.',
+    });
+    localStorage.setItem('gemini_model', 'gemini-2.5-flash-lite');
+    await renderApp();
+
+    await user.click(whyButton());
+
+    expect(await screen.findByText('The centre is still open; both sides are fine.')).toBeInTheDocument();
+    expect(getAiCommentary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fen: START_FEN,
+        score: '+0.30',
+        focus: 'evaluation',
+        lines: [{ score: '+0.30', pv_san: ['e4', 'e5', 'Nf3'] }],
+        model: 'gemini-2.5-flash-lite',
+      })
+    );
+    // The move commentary is a separate answer and stays untouched.
+    expect(screen.queryByText('"Take the centre."')).not.toBeInTheDocument();
+  });
+
+  it('drops the explanation once the position changes', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getAiCommentary).mockResolvedValue({ success: true, commentary: 'Level game.' });
+    await renderApp();
+    await user.click(whyButton());
+    await screen.findByText('Level game.');
+
+    act(() => {
+      chessboardProps().onPieceDrop('e2', 'e4', 'wP');
+    });
+
+    // Wait for the new analysis to be on screen: while it loads, the whole
+    // panel is replaced by a spinner, which would hide the text either way.
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(AFTER_E4));
+    await screen.findByText('Even position (balanced game)');
+    expect(screen.queryByText('Level game.')).not.toBeInTheDocument();
+  });
+
+  it('shows a refusal and pauses like the other Gemini requests', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getAiCommentary).mockResolvedValue({
+      success: false,
+      commentary: '',
+      model: 'gemini-3.8-flash',
+      error: 'Gemini refused the request: too many requests.',
+      retry_after_seconds: 60,
+    });
+    await renderApp();
+    await within(screen.getByLabelText('Gemini model')).findByRole('option', {
+      name: 'Default (gemini-3.8-flash)',
+    });
+
+    await user.click(whyButton());
+
+    expect(await screen.findByText('⚠️ Gemini refused the request: too many requests.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Why\? in 1:00/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Ask again in 1:00/ })).toBeDisabled();
+  });
+});
+
 describe('App theme', () => {
   it('switches between dark and light', async () => {
     const user = userEvent.setup();

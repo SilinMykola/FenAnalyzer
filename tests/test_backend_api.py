@@ -750,3 +750,78 @@ class TestRetryDelay:
     def test_no_delay_when_gemini_does_not_say(self):
         assert main.gemini_retry_delay({"error": {"message": "overloaded"}}) is None
         assert main.gemini_retry_delay({}) is None
+
+
+class TestExplainEvaluation:
+    # A position like the user's: material is level, yet Stockfish gives Black -3.14.
+    FEN = "q7/1P1K3B/P2P4/2PpP1P1/2p1nPpN/p2p1p2/1p1b1Q2/1k6 b - - 0 1"
+    REQUEST = {
+        "fen": FEN,
+        "turn": "black",
+        "score": "-3.14",
+        "best_move_san": "Qc7",
+        "verbal_verdict": "Clear advantage for Black",
+        "focus": "evaluation",
+        "lines": [
+            {"score": "-3.14", "pv_san": ["Qc7", "Bc3", "g5"]},
+            {"score": "-1.97", "pv_san": ["Qd7", "Bc3"]},
+        ],
+    }
+
+    def prompt_for(self, gemini, monkeypatch, **overrides):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(gemini_reply("Black's queen and passed pawns decide."))
+        body = client.post("/api/ai-commentary", json={**self.REQUEST, **overrides}).json()
+        prompt = json.loads(gemini.requests[0].content)["contents"][0]["parts"][0]["text"]
+        return body, prompt
+
+    def test_asks_why_the_position_is_rated_so(self, gemini, monkeypatch):
+        body, prompt = self.prompt_for(gemini, monkeypatch)
+
+        assert body["success"] is True
+        assert body["commentary"] == "Black's queen and passed pawns decide."
+        assert "Stockfish rates this position at -3.14" in prompt
+        assert "WHY the position deserves this evaluation" in prompt
+        # Not the question about the best move.
+        assert "is the strongest move" not in prompt
+
+    def test_sends_the_engine_lines_as_evidence(self, gemini, monkeypatch):
+        _, prompt = self.prompt_for(gemini, monkeypatch)
+
+        assert "  1. -3.14: Qc7 Bc3 g5" in prompt
+        assert "  2. -1.97: Qd7 Bc3" in prompt
+        assert "Do not invent moves" in prompt
+
+    def test_counts_the_material_itself(self, gemini, monkeypatch):
+        _, prompt = self.prompt_for(gemini, monkeypatch)
+
+        board = chess.Board(self.FEN)
+        material = main.calculate_material(board)
+        assert f"Material: White {material.white} points, Black {material.black} points" in prompt
+
+    def test_copes_with_a_fen_it_cannot_read(self, gemini, monkeypatch):
+        _, prompt = self.prompt_for(gemini, monkeypatch, fen="not a fen")
+
+        assert "Material: unknown" in prompt
+
+    def test_copes_without_engine_lines(self, gemini, monkeypatch):
+        _, prompt = self.prompt_for(gemini, monkeypatch, lines=[])
+
+        assert "(none given)" in prompt
+
+    def test_asks_about_the_move_by_default(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(gemini_reply())
+
+        ask()
+
+        prompt = json.loads(gemini.requests[0].content)["contents"][0]["parts"][0]["text"]
+        assert "Clearly explain WHY e4 is the strongest move" in prompt
+
+    def test_refuses_an_unknown_focus(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+
+        response = client.post("/api/ai-commentary", json={**COMMENTARY_REQUEST, "focus": "vibes"})
+
+        assert response.status_code == 422
+        assert gemini.requests == []

@@ -139,6 +139,25 @@ describe('getAiCommentary', () => {
     expect(sentBody().model).toBe('gemini-2.5-flash-lite');
   });
 
+  it('sends the focus and the engine lines when asking about the evaluation', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }));
+    const lines = [{ score: '-3.14', pv_san: ['Qc7', 'Bc3'] }];
+
+    await getAiCommentary({ ...request, focus: 'evaluation', lines });
+
+    expect(sentBody().focus).toBe('evaluation');
+    expect(sentBody().lines).toEqual(lines);
+  });
+
+  it('leaves the focus and lines out when asking about the move', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }));
+
+    await getAiCommentary(request);
+
+    expect(sentBody()).not.toHaveProperty('focus');
+    expect(sentBody()).not.toHaveProperty('lines');
+  });
+
   it('leaves the model out for the server default', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ success: true }));
 

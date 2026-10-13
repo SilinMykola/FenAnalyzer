@@ -360,3 +360,58 @@ describe('AnalysisPanel model picker by the countdown', () => {
     expect(inlinePicker().compareDocumentPosition(waitText) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+describe('AnalysisPanel explaining the evaluation', () => {
+  const whyButton = () => screen.getByRole('button', { name: /Why\?|Thinking…/ });
+
+  it('asks why the position is rated so from the button by the score', async () => {
+    const user = userEvent.setup();
+    const onExplainEvaluation = vi.fn();
+    renderPanel({ onExplainEvaluation });
+
+    await user.click(whyButton());
+
+    expect(onExplainEvaluation).toHaveBeenCalledTimes(1);
+    // Nothing is shown before an answer is asked for.
+    expect(screen.queryByText(/Why \+0\.30\?/)).not.toBeInTheDocument();
+  });
+
+  it('shows that the answer is on its way and blocks a second request', () => {
+    renderPanel({ onExplainEvaluation: vi.fn(), evalExplanation: { status: 'loading' } });
+
+    expect(whyButton()).toBeDisabled();
+    expect(screen.getByText(/The Grandmaster is looking at the position/)).toBeInTheDocument();
+  });
+
+  it("shows the Grandmaster's explanation under the score", () => {
+    renderPanel({
+      onExplainEvaluation: vi.fn(),
+      evalExplanation: { status: 'done', text: "White's centre pawns cramp Black." },
+    });
+
+    expect(screen.getByText('💡 Why +0.30?')).toBeInTheDocument();
+    expect(screen.getByText("White's centre pawns cramp Black.")).toBeInTheDocument();
+    expect(whyButton()).toBeEnabled();
+  });
+
+  it('shows why the explanation failed', () => {
+    renderPanel({
+      onExplainEvaluation: vi.fn(),
+      evalExplanation: { status: 'error', error: 'Gemini servers are temporarily overloaded.' },
+    });
+
+    expect(screen.getByText('⚠️ Gemini servers are temporarily overloaded.')).toBeInTheDocument();
+  });
+
+  it('waits out a Gemini pause with a countdown', () => {
+    renderPanel({ onExplainEvaluation: vi.fn(), aiWaitSeconds: 75 });
+
+    expect(screen.getByRole('button', { name: /Why\? in 1:15/ })).toBeDisabled();
+  });
+
+  it('has no button when nothing can explain', () => {
+    renderPanel();
+
+    expect(screen.queryByRole('button', { name: /Why\?/ })).not.toBeInTheDocument();
+  });
+});

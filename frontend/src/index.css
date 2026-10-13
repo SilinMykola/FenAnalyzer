@@ -2114,3 +2114,56 @@ body {
   display: flex;
   margin-top: 8px;
 }
+
+/* "Why?" next to the score, and the Grandmaster's answer about the evaluation */
+.btn-explain-eval {
+  display: block;
+  margin: 8px auto 0;
+  background: var(--surface-raised);
+  border: 1px solid var(--card-border);
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.btn-explain-eval:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+  border-color: var(--accent-color);
+}
+
+.btn-explain-eval:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.eval-explanation {
+  margin-top: 12px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--card-border);
+  border-left: 3px solid var(--accent-color);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.eval-explanation-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.eval-explanation-text {
+  margin: 6px 0 0;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.eval-explanation-error {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
