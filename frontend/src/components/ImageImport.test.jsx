@@ -430,11 +430,30 @@ describe('ImageImport model picker by the countdown', () => {
     expect(screen.getByText(/choose another model at the top/)).toBeInTheDocument();
   });
 
-  it('shows no picker while nothing has to be waited for', () => {
+  it('still offers another model once the wait is over', () => {
+    // An overloaded model gets a short pause and may still be busy after it.
     renderWaiting({
       waitSeconds: 0,
-      modelPicker: { value: '', models: [], defaultModel: null, onChange: vi.fn() },
+      modelPicker: { value: '', models: ['gemini-2.5-flash-lite'], defaultModel: null, onChange: vi.fn() },
     });
+
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument();
+    expect(screen.getByText('or try another model:')).toBeInTheDocument();
+    expect(inlinePicker()).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Try Again/ })).toBeEnabled();
+  });
+
+  it('shows no picker when nothing failed', () => {
+    const picker = { value: '', models: [], defaultModel: null, onChange: vi.fn() };
+    render(
+      <ImageImport
+        recognition={{ status: 'done', fen: '4k3/8/8/8/8/8/8/4K3 w - - 0 1', isValid: true }}
+        onImage={vi.fn()}
+        onEditInEditor={vi.fn()}
+        onClear={vi.fn()}
+        modelPicker={picker}
+      />
+    );
 
     expect(inlinePicker()).not.toBeInTheDocument();
   });

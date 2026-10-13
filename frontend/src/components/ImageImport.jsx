@@ -199,24 +199,26 @@ export default function ImageImport({
               >
                 🔁 Try Again
               </button>
-              {waitSeconds > 0 && (
-                <span className="gemini-wait">
+              {/* Another model is offered after any failure, not only during a
+                  pause: an overloaded model may stay busy long after it. */}
+              <span className="gemini-wait">
+                {waitSeconds > 0 && (
                   <span role="timer">⏳ Gemini asked to wait {formatCountdown(waitSeconds)}</span>
-                  {modelPicker ? (
-                    <>
-                      <span>— or switch the model:</span>
-                      <ModelPicker
-                        {...modelPicker}
-                        label=""
-                        ariaLabel="Switch Gemini model for reading images"
-                        className="model-picker-inline"
-                      />
-                    </>
-                  ) : (
-                    <span>— or choose another model at the top</span>
-                  )}
-                </span>
-              )}
+                )}
+                {modelPicker ? (
+                  <>
+                    <span>{waitSeconds > 0 ? '— or switch the model:' : 'or try another model:'}</span>
+                    <ModelPicker
+                      {...modelPicker}
+                      label=""
+                      ariaLabel="Switch Gemini model for reading images"
+                      className="model-picker-inline"
+                    />
+                  </>
+                ) : (
+                  waitSeconds > 0 && <span>— or choose another model at the top</span>
+                )}
+              </span>
             </div>
           )}
 

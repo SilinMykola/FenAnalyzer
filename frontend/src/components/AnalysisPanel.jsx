@@ -207,10 +207,15 @@ export default function AnalysisPanel({
           </div>
         )}
 
-        {/* Gemini asked to wait: another model has its own quota */}
-        {aiWaitSeconds > 0 && modelPicker && (
+        {/* After a failure or while Gemini asks to wait, offer another model:
+            it has its own quota, and an overloaded model may stay busy. */}
+        {(aiWaitSeconds > 0 || aiError) && modelPicker && (
           <div className="gemini-wait ai-wait">
-            <span>⏳ Gemini asked to wait {formatCountdown(aiWaitSeconds)} — or switch the model:</span>
+            <span>
+              {aiWaitSeconds > 0
+                ? `⏳ Gemini asked to wait ${formatCountdown(aiWaitSeconds)} — or switch the model:`
+                : 'Try another model:'}
+            </span>
             <ModelPicker
               {...modelPicker}
               label=""

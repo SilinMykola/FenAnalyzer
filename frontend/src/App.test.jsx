@@ -1257,6 +1257,54 @@ describe('App Gemini model and pause', () => {
     expect(screen.queryByLabelText('Switch Gemini model for the commentary')).not.toBeInTheDocument();
   });
 
+  it('keeps offering another model after an overload once its short pause is over', async () => {
+    fakeClock();
+    const user = userEvent.setup();
+    const OVERLOADED =
+      'Gemini servers are temporarily overloaded. Please wait a moment and try again, or choose ' +
+      'another model. (Tried 3 times.) Gemini said: This model is currently experiencing high demand.';
+    vi.mocked(recognizeImage)
+      .mockResolvedValueOnce({
+        success: false,
+        model: 'gemini-3.8-flash',
+        error: OVERLOADED,
+        retry_after_seconds: 30,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        fen: '4k3/8/8/8/8/8/8/R3K3 w - - 0 1',
+        turn_detected: true,
+        is_valid: true,
+      });
+    vi.mocked(getAiCommentary).mockResolvedValue({
+      success: false,
+      commentary: '',
+      model: 'gemini-3.8-flash',
+      error: OVERLOADED,
+      retry_after_seconds: 30,
+    });
+    await renderApp();
+    await within(picker()).findByRole('option', { name: 'gemini-2.5-flash-lite' });
+    // Each refusal pauses the model for 30 s; let each pause run out.
+    await user.click(askButton());
+    await screen.findByText(/currently experiencing high demand/);
+    act(() => vi.advanceTimersByTime(30_000));
+    await uploadScreenshot(user);
+    await screen.findByRole('timer');
+    act(() => vi.advanceTimersByTime(30_000));
+
+    // The pause is over, yet both places still offer another model.
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Switch Gemini model for the commentary')).toBeInTheDocument();
+    const inline = screen.getByLabelText('Switch Gemini model for reading images');
+
+    await user.selectOptions(inline, 'gemini-2.5-flash-lite');
+    await user.click(screen.getByRole('button', { name: /Try Again/ }));
+
+    expect(await screen.findByText(/Position recognized/)).toBeInTheDocument();
+    expect(recognizeImage.mock.calls.at(-1)[0].model).toBe('gemini-2.5-flash-lite');
+  });
+
   it('does not pause after an error that is not about load or quota', async () => {
     const user = userEvent.setup();
     vi.mocked(getAiCommentary).mockResolvedValue({

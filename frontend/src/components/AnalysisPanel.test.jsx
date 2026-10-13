@@ -327,6 +327,23 @@ describe('AnalysisPanel model picker by the countdown', () => {
     expect(onChange).toHaveBeenCalledWith('gemini-2.5-flash-lite');
   });
 
+  it('offers another model after a failed request, even without a wait', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderPanel({
+      aiError: 'Gemini servers are temporarily overloaded.',
+      aiWaitSeconds: 0,
+      modelPicker: picker(onChange),
+    });
+
+    expect(screen.getByText('Try another model:')).toBeInTheDocument();
+    expect(screen.queryByText(/Gemini asked to wait/)).not.toBeInTheDocument();
+    expect(askButton()).toBeEnabled();
+
+    await user.selectOptions(inlinePicker(), 'gemini-2.5-flash-lite');
+    expect(onChange).toHaveBeenCalledWith('gemini-2.5-flash-lite');
+  });
+
   it('shows no picker while nothing has to be waited for', () => {
     renderPanel({ aiWaitSeconds: 0, modelPicker: picker() });
 
