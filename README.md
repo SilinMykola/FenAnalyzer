@@ -58,6 +58,8 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **Castling rights** are granted wherever king and rook stand on their home squares
 - A misread piece can make the position illegal: it is then shown on a locked board, without analysis, with a **Fix in Board Editor** button
 - **Try Again** — when reading the image fails (Gemini overloaded, a timeout, a network error), one click sends the same picture again, no need to paste it anew. After an overload or a used-up quota the button waits out Gemini's pause with a countdown next to it, ; the model list in the image box lets you switch to another model and send the image again at once
+- **Boards seen from Black's side** — Gemini copies the board exactly as the picture shows it and names the corner square from the coordinate labels (`a1` or `h8` bottom-left); turning a board seen from Black's side is done by the backend, not by the model, which used to get it wrong. The result then notes *"The picture shows the board from Black's side; it was turned to White's."*
+- **↻ Upside down? Turn 180°** — if a position still comes out upside down (kings far from home, pawns about to promote on both sides), one click under the result turns it by 180 degrees; a second click turns it back. Keep the coordinate labels in the picture: they tell which way round the board is
 - **Read Again** — a result can be a misread too: after any result the same picture can be sent again, e.g. to a stronger model chosen in the image box, without pasting it anew
 - **The model choice is remembered** in the browser and stays after a successful read and a page reload; the header, the image box and the Grandmaster block all show and change the same choice
 - **Clear Image** removes the pasted picture together with its error or result; the board stays as it is
@@ -310,12 +312,14 @@ Reads a chess position from an image via Google Gemini and returns it as FEN.
   "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 1",
   "turn_detected": false,
   "is_valid": true,
+  "seen_from_black": false,
   "model": "gemini-3.8-flash",
   "error": null,
   "retry_after_seconds": null
 }
 ```
 `model` and `retry_after_seconds` work as in `/api/ai-commentary`.
+`seen_from_black` tells that the picture showed the board from Black's side and the backend turned it.
 `turn_detected` tells whether the side to move came from the image or was assumed.
 `is_valid: false` means the position is illegal (e.g. a missing king) and Stockfish would reject it.
 When nothing could be read, `success` is `false` and `error` says why.

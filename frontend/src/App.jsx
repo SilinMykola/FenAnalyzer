@@ -18,6 +18,7 @@ import {
 import { readImageAsBase64 } from './utils/imageFile';
 import { isChess960Pgn, withStandardCastlingPgn } from './utils/pgn';
 import { addMove, goTo, shownFen, startLine } from './utils/moveLine';
+import { getPositionError, rotateFen } from './utils/editorFen';
 import { playMoveSound } from './utils/sound';
 import useTheme from './hooks/useTheme';
 import useGeminiCooldown from './hooks/useGeminiCooldown';
@@ -428,6 +429,45 @@ export default function App() {
 
   // Reads the position in an image with Gemini, puts it on the board and,
   // when it is legal, analyzes it.
+  // Puts a position read from an image on the board and, when it is legal,
+  // analyzes it; recognition holds what the box shows about it.
+  const showRecognizedPosition = (recognition) => {
+    setVariationPreview(null);
+    setError(null);
+    try {
+      gameRef.current.load(recognition.fen);
+    } catch {
+      // chess.js refuses an illegal position; the board stays locked until it is fixed.
+    }
+    showPosition(recognition.fen);
+    setOrientation(sideToMove(recognition.fen));
+    setMoveLine(startLine(recognition.fen));
+    setImageRecognition({ status: 'done', ...recognition });
+
+    if (recognition.isValid) {
+      triggerAnalysis(recognition.fen);
+    } else {
+      // Stockfish would reject it; drop the analysis of the previous position.
+      setAnalysis(null);
+      setAiCommentary(null);
+      setAiError(null);
+    }
+  };
+
+  // Turns a position read upside down by 180 degrees; the backend turns a
+  // board seen from Black's side itself, this is for when Gemini got it wrong.
+  const handleRotateRecognized = () => {
+    if (imageRecognition.status !== 'done') return;
+    const fen = rotateFen(imageRecognition.fen);
+    playMoveSound(false);
+    showRecognizedPosition({
+      ...imageRecognition,
+      fen,
+      isValid: getPositionError(fen) === null,
+      seenFromBlack: !imageRecognition.seenFromBlack,
+    });
+  };
+
   const handleImageSelected = async (file) => {
     setImageRecognition({ status: 'recognizing' });
     try {
@@ -447,31 +487,12 @@ export default function App() {
         return;
       }
 
-      setVariationPreview(null);
-      setError(null);
-      try {
-        gameRef.current.load(res.fen);
-      } catch {
-        // chess.js refuses an illegal position; the board stays locked until it is fixed.
-      }
-      showPosition(res.fen);
-      setOrientation(sideToMove(res.fen));
-      setMoveLine(startLine(res.fen));
-      setImageRecognition({
-        status: 'done',
+      showRecognizedPosition({
         fen: res.fen,
         turnDetected: res.turn_detected,
         isValid: res.is_valid,
+        seenFromBlack: Boolean(res.seen_from_black),
       });
-
-      if (res.is_valid) {
-        triggerAnalysis(res.fen);
-      } else {
-        // Stockfish would reject it; drop the analysis of the previous position.
-        setAnalysis(null);
-        setAiCommentary(null);
-        setAiError(null);
-      }
     } catch (err) {
       setImageRecognition({
         status: 'error',
@@ -641,6 +662,7 @@ export default function App() {
                     recognition={imageRecognition}
                     onEditInEditor={() => setActiveTab('editor')}
                     onClear={() => setImageRecognition({ status: 'idle' })}
+                    onRotate={handleRotateRecognized}
                     waitSeconds={geminiWait}
                     modelPicker={geminiModelPicker}
                   />

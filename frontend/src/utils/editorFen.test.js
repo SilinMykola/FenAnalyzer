@@ -7,6 +7,7 @@ import {
   isCastlingPossible,
   parseFenMeta,
   positionToBoardFen,
+  rotateFen,
 } from './editorFen';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -198,6 +199,33 @@ describe('getPositionError', () => {
   it('names White when White is the side left in check', () => {
     expect(getPositionError('k3r3/8/8/8/8/8/8/4K3 b - - 0 1')).toBe(
       "give White the move or take White's king out of check"
+    );
+  });
+});
+
+describe('rotateFen', () => {
+  // The user's position, and the same board read upside down.
+  const RIGHT = 'rnb5/pp1p2pk/3Q3p/1B2Np2/P1P5/1P6/4KP1P/q7 b - - 0 1';
+  const UPSIDE_DOWN = '7Q/P1PK4/6P1/5P1P/2pN2B1/p3Q3/kp2p1pp/5bnr b - - 0 1';
+
+  it('turns a board read upside down the right way round', () => {
+    expect(rotateFen('7q/P1PK4/6P1/5P1P/2pN2B1/p3Q3/kp2p1pp/5bnr b - - 0 1')).toBe(RIGHT);
+  });
+
+  it('gives the board back when turned twice', () => {
+    expect(rotateFen(rotateFen(RIGHT))).toBe(RIGHT);
+  });
+
+  it('keeps the side to move', () => {
+    expect(rotateFen(UPSIDE_DOWN).split(' ')[1]).toBe('b');
+    expect(rotateFen('4k3/8/8/8/8/8/8/4K3 w - - 0 1').split(' ')[1]).toBe('w');
+  });
+
+  it('grants castling where king and rook end up on their home squares', () => {
+    // Read upside down: White's king and rooks at the top, Black's at the
+    // bottom. Turned, both stand on their home squares again.
+    expect(rotateFen('R2K3R/8/8/8/8/8/8/r2k3r w - - 0 1')).toBe(
+      'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1'
     );
   });
 });

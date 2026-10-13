@@ -704,14 +704,15 @@ IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/webp", "image/heic", "imag
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 RECOGNIZE_PROMPT = """You are given an image of a chess position: a screenshot of a digital board, a printed diagram or a photo.
-Read the position and answer with JSON only, in this exact shape:
-{"board": "<piece placement>", "turn": "w" | "b" | null}
+Copy the board exactly as it appears in the image and answer with JSON only, in this exact shape:
+{"rows": ["<row>", "<row>", "<row>", "<row>", "<row>", "<row>", "<row>", "<row>"], "bottom_left": "a1" | "h8" | null, "turn": "w" | "b" | null}
 
 Rules:
-- "board" is the first field of a FEN: 8 ranks separated by "/", from rank 8 down to rank 1, each rank from file a to file h. Uppercase letters for White pieces (KQRBNP), lowercase for Black (kqrbnp), digits 1-8 for runs of empty squares.
-- If the board is shown from Black's side (rank 1 at the top, file h on the left), still write the placement from White's side. Use the coordinate labels on the board edges when they are visible.
+- "rows" are the 8 rows of squares as you see them, from the top row of the image to the bottom row, each row from left to right. Do not rotate or flip anything, even when the board is shown from Black's side: copy what you see.
+- Write each row like a rank in FEN: uppercase letters for White pieces (KQRBNP), lowercase for Black (kqrbnp), digits 1-8 for runs of empty squares. Every row covers exactly 8 squares.
+- "bottom_left" is the square in the bottom-left corner of the image, read from the coordinate labels on the board edges: "a1" when rank 1 is at the bottom (the board is seen from White's side), "h8" when rank 8 is at the bottom (seen from Black's side). Without labels, judge from the position, e.g. which side's pawns and pieces start at the bottom; use null only when you cannot tell.
 - "turn" is the side to move only when the image shows it, for example a "White to move" caption or a highlighted last move (then the other side is to move). Otherwise use null.
-- If there is no chess board in the image, answer {"board": null, "turn": null}."""
+- If there is no chess board in the image, answer {"rows": null, "bottom_left": null, "turn": null}."""
 
 
 class RecognizeImageRequest(BaseModel):
@@ -728,6 +729,8 @@ class RecognizeImageResponse(BaseModel):
     turn_detected: bool = False
     # Whether the position is legal, so it can be sent to Stockfish as is
     is_valid: bool = False
+    # Whether the image shows the board from Black's side, so it was turned
+    seen_from_black: bool = False
     model: Optional[str] = None
     error: Optional[str] = None
     # Seconds to wait before asking Gemini again, when it refused for load or quota.
@@ -761,6 +764,41 @@ def parse_recognition(text: str) -> dict:
     if not isinstance(answer, dict):
         raise ValueError("answer is not a JSON object")
     return answer
+
+
+def rotate_placement(placement: str) -> str:
+    """The placement turned by 180 degrees: a board seen from Black's side
+    becomes the same board seen from White's. Squares are counted as they
+    stand, so a miscounted rank stays miscounted and is reported as such."""
+    expanded = [
+        "".join("." * int(c) if c.isdigit() else c for c in rank)
+        for rank in placement.strip().split("/")
+    ]
+    turned = [rank[::-1] for rank in reversed(expanded)]
+    return "/".join(re.sub(r"\.+", lambda m: str(len(m.group())), rank) for rank in turned)
+
+
+def placement_from_answer(answer: dict) -> tuple:
+    """(placement from White's side, seen_from_black) from Gemini's answer,
+    or (None, False) when it found no board.
+
+    Gemini copies the rows as they appear and names the bottom-left square;
+    turning a board seen from Black's side is done here, not by the model,
+    which got it wrong now and then. An answer in the older "board" shape,
+    already from White's side, is taken as it is.
+    """
+    rows = answer.get("rows")
+    if rows is None:
+        board = answer.get("board")
+        return (str(board), False) if board else (None, False)
+    if isinstance(rows, str):
+        rows = rows.split("/")
+    placement = "/".join(str(row).strip() for row in rows)
+    if not placement.strip("/"):
+        return None, False
+    if answer.get("bottom_left") == "h8":
+        return rotate_placement(placement), True
+    return placement, False
 
 
 def describe_placement_problem(placement: str) -> str:
@@ -871,16 +909,16 @@ async def recognize_image(payload: RecognizeImageRequest):
         )
         return RecognizeImageResponse(success=False, model=model_name, error=error)
 
-    placement = answer.get("board")
+    placement, seen_from_black = placement_from_answer(answer)
     if not placement:
         return RecognizeImageResponse(
             success=False, model=model_name, error="No chess board was found in the image."
         )
 
     try:
-        board, turn_detected = build_recognized_board(str(placement), answer.get("turn"))
+        board, turn_detected = build_recognized_board(placement, answer.get("turn"))
     except ValueError:
-        problem = describe_placement_problem(str(placement))
+        problem = describe_placement_problem(placement)
         return RecognizeImageResponse(
             success=False,
             model=model_name,
@@ -895,5 +933,6 @@ async def recognize_image(payload: RecognizeImageRequest):
         fen=board.fen(),
         turn_detected=turn_detected,
         is_valid=board.is_valid(),
+        seen_from_black=seen_from_black,
         model=model_name,
     )

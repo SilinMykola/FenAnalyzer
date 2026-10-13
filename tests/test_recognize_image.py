@@ -96,7 +96,9 @@ class TestGeminiRequest:
 
         sent = json.loads(gemini.requests[0].content)
         prompt, image = sent["contents"][0]["parts"]
-        assert '"board"' in prompt["text"] and "FEN" in prompt["text"]
+        assert '"rows"' in prompt["text"] and '"bottom_left"' in prompt["text"]
+        # The model copies what it sees; turning the board is left to the code.
+        assert "Do not rotate or flip anything" in prompt["text"]
         assert image["inline_data"] == {"mime_type": "image/jpeg", "data": PNG_BASE64}
         # Deterministic JSON output: the answer is parsed, not shown as prose.
         assert sent["generationConfig"]["responseMimeType"] == "application/json"
@@ -112,6 +114,7 @@ class TestGeminiRequest:
             "fen": None,
             "turn_detected": False,
             "is_valid": False,
+            "seen_from_black": False,
             "model": "gemini-3.8-flash",
             "error": "Gemini API error (400): API key not valid",
             "retry_after_seconds": None,
@@ -291,3 +294,78 @@ class TestReadingTheAnswer:
         body = recognize().json()
 
         assert body["error"] == "Gemini returned no answer for this image."
+
+
+# The user's screenshot, a chess.com board seen from Black's side: rank 1 at
+# the top, file h on the left. These are its rows exactly as they appear.
+ROWS_SEEN_FROM_BLACK = ["7q", "P1PK4", "6P1", "5P1P", "2pN2B1", "p3Q3", "kp2p1pp", "5bnr"]
+POSITION_FROM_WHITE = "rnb5/pp1p2pk/3Q3p/1B2Np2/P1P5/1P6/4KP1P/q7"
+
+
+class TestBoardSeenFromEitherSide:
+    def answer(self, gemini, answer):
+        gemini.reply(gemini_answer(answer))
+        return recognize().json()
+
+    def test_turns_a_board_seen_from_blacks_side(self, gemini, with_key):
+        body = self.answer(
+            gemini, {"rows": ROWS_SEEN_FROM_BLACK, "bottom_left": "h8", "turn": "b"}
+        )
+
+        assert body["success"] is True
+        assert body["fen"] == POSITION_FROM_WHITE + " b - - 0 1"
+        assert body["seen_from_black"] is True
+        assert body["is_valid"] is True
+
+    def test_takes_a_board_seen_from_whites_side_as_it_is(self, gemini, with_key):
+        rows = POSITION_FROM_WHITE.split("/")
+
+        body = self.answer(gemini, {"rows": rows, "bottom_left": "a1", "turn": "b"})
+
+        assert body["fen"] == POSITION_FROM_WHITE + " b - - 0 1"
+        assert body["seen_from_black"] is False
+
+    def test_takes_the_rows_as_they_are_when_the_side_is_unknown(self, gemini, with_key):
+        rows = POSITION_FROM_WHITE.split("/")
+
+        body = self.answer(gemini, {"rows": rows, "bottom_left": None, "turn": "b"})
+
+        assert body["fen"].startswith(POSITION_FROM_WHITE)
+        assert body["seen_from_black"] is False
+
+    def test_accepts_the_rows_as_one_string(self, gemini, with_key):
+        body = self.answer(
+            gemini, {"rows": "/".join(ROWS_SEEN_FROM_BLACK), "bottom_left": "h8", "turn": "b"}
+        )
+
+        assert body["fen"].startswith(POSITION_FROM_WHITE)
+
+    def test_no_rows_means_no_board(self, gemini, with_key):
+        body = self.answer(gemini, {"rows": None, "bottom_left": None, "turn": None})
+
+        assert body["error"] == "No chess board was found in the image."
+
+    def test_names_the_real_rank_of_a_miscounted_row(self, gemini, with_key):
+        # The top row of a board seen from Black's side is rank 1.
+        rows = ["8q"] + ROWS_SEEN_FROM_BLACK[1:]
+
+        body = self.answer(gemini, {"rows": rows, "bottom_left": "h8", "turn": "b"})
+
+        assert body["success"] is False
+        assert "rank 1 has 9 squares instead of 8" in body["error"]
+
+
+class TestRotatePlacement:
+    def test_turns_the_starting_position(self):
+        assert main.rotate_placement("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR") == (
+            "RNBKQBNR/PPPPPPPP/8/8/8/8/pppppppp/rnbkqbnr"
+        )
+
+    def test_mirrors_runs_of_empty_squares(self):
+        assert main.rotate_placement("8/8/8/8/8/8/8/2p5") == "5p2/8/8/8/8/8/8/8"
+
+    def test_turning_twice_gives_the_board_back(self):
+        assert main.rotate_placement(main.rotate_placement(POSITION_FROM_WHITE)) == POSITION_FROM_WHITE
+
+    def test_turns_the_users_screenshot(self):
+        assert main.rotate_placement("/".join(ROWS_SEEN_FROM_BLACK)) == POSITION_FROM_WHITE

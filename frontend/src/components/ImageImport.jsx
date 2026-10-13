@@ -11,7 +11,8 @@ const PASTE_HINT = 'press Ctrl+V / ⌘V to paste the image instead';
  * state of the recognition; App sends the image to the backend.
  *
  * recognition: { status: 'idle' | 'recognizing' | 'done' | 'error',
- *                error, fen, turnDetected, isValid }
+ *                error, fen, turnDetected, isValid, seenFromBlack }
+ * onRotate:    turns a result by 180 degrees, for a board read upside down
  * waitSeconds: how long Gemini asked to wait before the next request; Try
  *              Again stays locked until it runs out.
  * modelPicker: props for a ModelPicker always shown in the box: another model
@@ -22,6 +23,7 @@ export default function ImageImport({
   recognition,
   onEditInEditor,
   onClear,
+  onRotate,
   waitSeconds = 0,
   modelPicker,
 }) {
@@ -124,6 +126,19 @@ export default function ImageImport({
     !localError &&
     Boolean(lastImage) &&
     (recognition.status === 'error' || recognition.status === 'done');
+  // Shown under a result: a board read upside down has pawns about to
+  // promote on both sides and kings far from home, which one click undoes.
+  const rotateButton = onRotate && (
+    <button
+      type="button"
+      className="preset-btn"
+      onClick={onRotate}
+      title="The board came out upside down: turn the position by 180 degrees"
+    >
+      ↻ Upside down? Turn 180°
+    </button>
+  );
+  const seenFromBlackNote = ' The picture shows the board from Black\'s side; it was turned to White\'s.';
   const hasSomethingToClear = Boolean(previewUrl || localError || recognition.status !== 'idle');
 
   return (
@@ -215,10 +230,12 @@ export default function ImageImport({
                 {recognition.turnDetected
                   ? ' (shown in the image).'
                   : ' — a guess, the image does not show it.'}
+                {recognition.seenFromBlack && seenFromBlackNote}
               </span>
               <button type="button" className="preset-btn" onClick={onEditInEditor}>
                 🧩 Fix in Board Editor
               </button>
+              {rotateButton}
             </div>
           )}
 
@@ -227,10 +244,12 @@ export default function ImageImport({
               <span>
                 ⚠️ The recognized position is not legal, probably a misread piece. Fix it in
                 the Board Editor before analysis.
+                {recognition.seenFromBlack && seenFromBlackNote}
               </span>
               <button type="button" className="preset-btn" onClick={onEditInEditor}>
                 🧩 Fix in Board Editor
               </button>
+              {rotateButton}
             </div>
           )}
 

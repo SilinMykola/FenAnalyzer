@@ -137,3 +137,21 @@ export function getPositionError(fen) {
   }
   return null;
 }
+
+/**
+ * The position turned by 180 degrees, for a board that was read upside down
+ * (a picture seen from Black's side taken as if seen from White's). The side
+ * to move stays; castling rights are granted wherever king and rook stand on
+ * their home squares, as for a freshly read image.
+ */
+export function rotateFen(fen) {
+  const position = fenToPosition(fen);
+  const turned = {};
+  for (const [square, piece] of Object.entries(position)) {
+    const file = FILES[7 - FILES.indexOf(square[0])];
+    const rank = 9 - Number(square[1]);
+    turned[`${file}${rank}`] = piece;
+  }
+  const allRights = Object.fromEntries(CASTLING_FLAGS.map((flag) => [flag, true]));
+  return buildFen(turned, parseFenMeta(fen).turn, allRights);
+}

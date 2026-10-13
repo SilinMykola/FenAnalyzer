@@ -1039,6 +1039,75 @@ describe('App your moves since a loaded position', () => {
   });
 });
 
+describe('App position read upside down', () => {
+  // The user's position, and the same board as a weak model returned it,
+  // copied from a picture seen from Black's side without turning it.
+  const RIGHT = 'rnb5/pp1p2pk/3Q3p/1B2Np2/P1P5/1P6/4KP1P/q7 b - - 0 1';
+  const UPSIDE_DOWN = '7q/P1PK4/6P1/5P1P/2pN2B1/p3Q3/kp2p1pp/5bnr b - - 0 1';
+  const turnButton = () => screen.getByRole('button', { name: /Upside down\? Turn 180°/ });
+
+  async function readImage(user, answer) {
+    vi.mocked(recognizeImage).mockResolvedValue({
+      success: true,
+      turn_detected: true,
+      is_valid: true,
+      ...answer,
+    });
+    await user.upload(
+      screen.getByLabelText('Upload image file'),
+      new File(['png bytes'], 'board.png', { type: 'image/png' })
+    );
+    await screen.findByText(/Position recognized|not legal/);
+  }
+
+  it('turns a board read upside down by 180 degrees and analyzes it', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await readImage(user, { fen: UPSIDE_DOWN });
+
+    await user.click(turnButton());
+
+    expect(chessboardProps().position).toBe(RIGHT);
+    expect(screen.getByLabelText('FEN Position')).toHaveValue(RIGHT);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(RIGHT));
+    // Black to move, so Black stays at the bottom.
+    expect(chessboardProps().boardOrientation).toBe('black');
+  });
+
+  it('turns it back on a second click', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await readImage(user, { fen: UPSIDE_DOWN });
+
+    await user.click(turnButton());
+    await user.click(turnButton());
+
+    expect(chessboardProps().position).toBe(UPSIDE_DOWN);
+  });
+
+  it('makes the turned position the start of the move list', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await readImage(user, { fen: UPSIDE_DOWN });
+    await user.click(turnButton());
+
+    act(() => chessboardProps().onPieceDrop('h7', 'g8', 'bK'));
+    await user.click(within(screen.getByLabelText('Your moves')).getByRole('button', { name: 'Start' }));
+
+    expect(chessboardProps().position).toBe(RIGHT);
+  });
+
+  it("tells when the backend turned a picture seen from Black's side", async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    await readImage(user, { fen: RIGHT, seen_from_black: true });
+
+    expect(screen.getByText(/shows the board from Black's side; it was turned/)).toBeInTheDocument();
+    expect(chessboardProps().position).toBe(RIGHT);
+  });
+});
+
 describe('App Gemini model and pause', () => {
   const picker = () => screen.getByLabelText('Gemini model');
   const askButton = () => screen.getByRole('button', { name: /Ask Grandmaster|Ask again in/ });

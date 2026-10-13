@@ -519,3 +519,54 @@ describe('ImageImport reading again', () => {
     expect(screen.getByRole('timer')).toHaveTextContent('0:20');
   });
 });
+
+describe('ImageImport turning a result upside down', () => {
+  const RESULT = { status: 'done', fen: '4k3/8/8/8/8/8/8/4K3 w - - 0 1', isValid: true };
+  const turnButton = () => screen.queryByRole('button', { name: /Upside down\? Turn 180°/ });
+
+  function renderResult(recognition, onRotate = vi.fn()) {
+    render(
+      <ImageImport
+        recognition={recognition}
+        onImage={vi.fn()}
+        onEditInEditor={vi.fn()}
+        onClear={vi.fn()}
+        onRotate={onRotate}
+      />
+    );
+    return onRotate;
+  }
+
+  it('offers to turn a recognized position and asks App to do it', async () => {
+    const user = userEvent.setup();
+    const onRotate = renderResult(RESULT);
+
+    await user.click(turnButton());
+
+    expect(onRotate).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers it for an illegal result too, a typical sign of a board read upside down', () => {
+    renderResult({ ...RESULT, isValid: false });
+
+    expect(turnButton()).toBeInTheDocument();
+  });
+
+  it('is not offered before there is a result', () => {
+    renderResult({ status: 'error', error: 'overloaded' });
+
+    expect(turnButton()).not.toBeInTheDocument();
+  });
+
+  it("says so when the picture showed the board from Black's side", () => {
+    renderResult({ ...RESULT, seenFromBlack: true });
+
+    expect(screen.getByText(/shows the board from Black's side; it was turned/)).toBeInTheDocument();
+  });
+
+  it("says nothing about the side for a board seen from White's", () => {
+    renderResult(RESULT);
+
+    expect(screen.queryByText(/from Black's side/)).not.toBeInTheDocument();
+  });
+});
