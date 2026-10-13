@@ -763,6 +763,30 @@ def parse_recognition(text: str) -> dict:
     return answer
 
 
+def describe_placement_problem(placement: str) -> str:
+    """What is wrong with a piece placement python-chess refused, in words.
+
+    Gemini sometimes miscounts the empty squares of a rank or skips a rank;
+    naming it shows the board was misread, not that the picture was bad.
+    """
+    ranks = placement.strip().split("/")
+    if len(ranks) != 8:
+        return f"it has {len(ranks)} ranks instead of 8"
+    for i, rank in enumerate(ranks):
+        number = 8 - i  # a placement lists rank 8 first
+        squares = 0
+        for char in rank:
+            if char.isdigit():
+                squares += int(char)
+            elif char.lower() in "kqrbnp":
+                squares += 1
+            else:
+                return f"rank {number} has an unknown piece '{char}'"
+        if squares != 8:
+            return f"rank {number} has {squares} squares instead of 8"
+    return "its layout is not a valid chess board"
+
+
 def build_recognized_board(placement: str, turn: Optional[str]) -> tuple:
     """Turns a recognized placement into a board; returns (board, turn_detected).
 
@@ -856,10 +880,14 @@ async def recognize_image(payload: RecognizeImageRequest):
     try:
         board, turn_detected = build_recognized_board(str(placement), answer.get("turn"))
     except ValueError:
+        problem = describe_placement_problem(str(placement))
         return RecognizeImageResponse(
             success=False,
             model=model_name,
-            error="The board in the image could not be read reliably. Try a clearer or tighter crop.",
+            error=(
+                f"Gemini misread the board: {problem}. The picture is fine; "
+                "Try Again, preferably with a stronger model chosen above."
+            ),
         )
 
     return RecognizeImageResponse(

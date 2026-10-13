@@ -213,14 +213,30 @@ class TestReadingTheAnswer:
         assert body["error"] == "No chess board was found in the image."
 
     @pytest.mark.parametrize(
-        "placement",
-        ["8/8/8/8/8/8/8", "4k3/8/8/8/8/8/8/4K3X", "9/8/8/8/8/8/8/8", "4k4/8/8/8/8/8/8/4K3"],
+        "placement, problem",
+        [
+            ("8/8/8/8/8/8/8", "it has 7 ranks instead of 8"),
+            ("8/8/8/8/8/8/8/8/8", "it has 9 ranks instead of 8"),
+            ("4k3/8/8/8/8/8/8/4K3X", "rank 1 has an unknown piece 'X'"),
+            ("9/8/8/8/8/8/8/8", "rank 8 has 9 squares instead of 8"),
+            ("4k4/8/8/8/8/8/8/4K3", "rank 8 has 9 squares instead of 8"),
+            ("4k3/8/8/8/8/2p4/8/4K3", "rank 3 has 7 squares instead of 8"),
+        ],
     )
-    def test_a_malformed_board(self, gemini, with_key, placement):
+    def test_says_what_gemini_got_wrong_in_a_malformed_board(self, gemini, with_key, placement, problem):
         body = self.answer(gemini, {"board": placement, "turn": "w"})
 
         assert body["success"] is False
-        assert "could not be read reliably" in body["error"]
+        assert body["error"] == (
+            f"Gemini misread the board: {problem}. The picture is fine; "
+            "Try Again, preferably with a stronger model chosen above."
+        )
+
+    def test_names_no_problem_it_cannot_find(self):
+        # python-chess refused it, yet every rank counts out; say so plainly.
+        assert main.describe_placement_problem("8/8/8/8/8/8/8/8") == (
+            "its layout is not a valid chess board"
+        )
 
     @pytest.mark.parametrize("text", ["White is winning", "[1, 2, 3]"])
     def test_an_answer_that_is_not_the_expected_json(self, gemini, with_key, text):

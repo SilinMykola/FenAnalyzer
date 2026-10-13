@@ -426,6 +426,7 @@ the unexpected pass, and the marker should be removed.
 |---|---|---|
 | *Cannot reach the app's server …* | The page is open, but the dev server that serves it (Vite) is not running, so no request gets through | Start the app with `./start.sh` in the project folder, then reload the page |
 | *Server error: 500 — the backend is not answering …* | Vite is running, but the FastAPI backend behind it is not: Vite's proxy answers with an empty 500 | Start the app with `./start.sh` (or the backend alone, see Option B above) |
+| *Gemini misread the board: rank 3 has 9 squares instead of 8 …* | Gemini returned a board that cannot exist (a miscounted rank, a missing rank, an unknown piece), so it is not put on the board | **Try Again**, preferably after choosing a stronger model in the image box. Keep the coordinates on the board edges in the picture: they help |
 | *Backend Offline* in the header | The health check at page load got no answer from the backend | Same as above, then reload the page |
 
 ---
