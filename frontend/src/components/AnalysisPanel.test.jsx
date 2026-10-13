@@ -336,7 +336,7 @@ describe('AnalysisPanel model picker by the countdown', () => {
       modelPicker: picker(onChange),
     });
 
-    expect(screen.getByText('Try another model:')).toBeInTheDocument();
+    expect(inlinePicker()).toBeInTheDocument();
     expect(screen.queryByText(/Gemini asked to wait/)).not.toBeInTheDocument();
     expect(askButton()).toBeEnabled();
 
@@ -344,10 +344,19 @@ describe('AnalysisPanel model picker by the countdown', () => {
     expect(onChange).toHaveBeenCalledWith('gemini-2.5-flash-lite');
   });
 
-  it('shows no picker while nothing has to be waited for', () => {
+  it('always offers the model, with no wait text while nothing has to be waited for', () => {
+    // A picker that came and went with the pause vanished from under the
+    // user's open dropdown when the pause ended.
     renderPanel({ aiWaitSeconds: 0, modelPicker: picker() });
 
-    expect(inlinePicker()).not.toBeInTheDocument();
+    expect(inlinePicker()).toBeInTheDocument();
     expect(screen.queryByText(/Gemini asked to wait/)).not.toBeInTheDocument();
+  });
+
+  it('puts the picker before the countdown, so the ticking text cannot move it', () => {
+    renderPanel({ aiWaitSeconds: 42, modelPicker: picker() });
+
+    const waitText = screen.getByText(/Gemini asked to wait 0:42/);
+    expect(inlinePicker().compareDocumentPosition(waitText) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

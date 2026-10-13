@@ -8,7 +8,7 @@ import React from 'react';
  * value, models, defaultModel and onChange come from App as one object, so
  * every picker on the page shows and changes the same choice.
  */
-export default function ModelPicker({
+function ModelPicker({
   value,
   models = [],
   defaultModel,
@@ -37,3 +37,6 @@ export default function ModelPicker({
     </label>
   );
 }
+
+// Re-rendered only when its own props change, not on every countdown tick.
+export default React.memo(ModelPicker);

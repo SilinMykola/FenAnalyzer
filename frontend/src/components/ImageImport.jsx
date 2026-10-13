@@ -200,14 +200,13 @@ export default function ImageImport({
                 🔁 Try Again
               </button>
               {/* Another model is offered after any failure, not only during a
-                  pause: an overloaded model may stay busy long after it. */}
+                  pause: an overloaded model may stay busy long after it. The
+                  picker comes before the countdown, so nothing in front of it
+                  changes while it ticks and an open dropdown stays put. */}
               <span className="gemini-wait">
-                {waitSeconds > 0 && (
-                  <span role="timer">⏳ Gemini asked to wait {formatCountdown(waitSeconds)}</span>
-                )}
-                {modelPicker ? (
+                {modelPicker && (
                   <>
-                    <span>{waitSeconds > 0 ? '— or switch the model:' : 'or try another model:'}</span>
+                    <span>or try another model:</span>
                     <ModelPicker
                       {...modelPicker}
                       label=""
@@ -215,8 +214,12 @@ export default function ImageImport({
                       className="model-picker-inline"
                     />
                   </>
-                ) : (
-                  waitSeconds > 0 && <span>— or choose another model at the top</span>
+                )}
+                {waitSeconds > 0 && (
+                  <span role="timer">⏳ Gemini asked to wait {formatCountdown(waitSeconds)}</span>
+                )}
+                {!modelPicker && waitSeconds > 0 && (
+                  <span>— or choose another model at the top</span>
                 )}
               </span>
             </div>

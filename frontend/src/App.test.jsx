@@ -1253,8 +1253,11 @@ describe('App Gemini model and pause', () => {
 
     expect(await screen.findByText('"Develop the knight."')).toBeInTheDocument();
     expect(getAiCommentary.mock.calls[1][0].model).toBe('gemini-2.5-flash-lite');
-    // Nothing to wait for on this model, so the picker by the countdown is gone.
-    expect(screen.queryByLabelText('Switch Gemini model for the commentary')).not.toBeInTheDocument();
+    // Nothing to wait for on this model: the picker stays, the wait text goes.
+    expect(screen.getByLabelText('Switch Gemini model for the commentary')).toHaveValue(
+      'gemini-2.5-flash-lite'
+    );
+    expect(screen.queryByText(/Gemini asked to wait/)).not.toBeInTheDocument();
   });
 
   it('keeps offering another model after an overload once its short pause is over', async () => {
@@ -1303,6 +1306,49 @@ describe('App Gemini model and pause', () => {
 
     expect(await screen.findByText(/Position recognized/)).toBeInTheDocument();
     expect(recognizeImage.mock.calls.at(-1)[0].model).toBe('gemini-2.5-flash-lite');
+  });
+
+  it('keeps the Grandmaster model picker when a pause from a failed image read ends', async () => {
+    // The bug report: the image read failed, the shared pause locked Ask
+    // Grandmaster and showed a picker under it, and when the pause ended the
+    // picker vanished together with the user's open dropdown.
+    fakeClock();
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage).mockResolvedValue({
+      success: false,
+      model: 'gemini-3.8-flash',
+      error: 'Gemini servers are temporarily overloaded.',
+      retry_after_seconds: 30,
+    });
+    await renderApp();
+    await within(picker()).findByRole('option', { name: 'Default (gemini-3.8-flash)' });
+    await uploadScreenshot(user);
+    await screen.findByRole('timer');
+    const grandmasterPicker = screen.getByLabelText('Switch Gemini model for the commentary');
+
+    act(() => vi.advanceTimersByTime(30_000));
+
+    // Still the very same element: it was neither removed nor rebuilt.
+    expect(screen.getByLabelText('Switch Gemini model for the commentary')).toBe(grandmasterPicker);
+    expect(screen.getByLabelText('Switch Gemini model for reading images')).toBeInTheDocument();
+  });
+
+  it('does not touch an open dropdown while the countdown ticks', async () => {
+    // Re-setting the selected option every second closes an open dropdown in
+    // some browsers, so the pickers must not be re-rendered by the ticks.
+    fakeClock();
+    const user = userEvent.setup();
+    vi.mocked(getAiCommentary).mockResolvedValue(refused(600));
+    await renderApp();
+    await within(picker()).findByRole('option', { name: 'Default (gemini-3.8-flash)' });
+    await user.click(askButton());
+    await waitFor(() => expect(askButton()).toHaveTextContent('Ask again in 10:00'));
+    const selectedWrites = vi.spyOn(HTMLOptionElement.prototype, 'selected', 'set');
+
+    act(() => vi.advanceTimersByTime(5_000));
+
+    expect(askButton()).toHaveTextContent('Ask again in 9:55');
+    expect(selectedWrites).not.toHaveBeenCalled();
   });
 
   it('does not pause after an error that is not about load or quota', async () => {

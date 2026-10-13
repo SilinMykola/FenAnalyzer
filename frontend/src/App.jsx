@@ -114,14 +114,17 @@ export default function App() {
     }
   };
 
-  const handleSelectGeminiModel = (model) => {
+  // Stable between renders: the pickers skip re-rendering while it stays the
+  // same, so the once-a-second countdown does not redraw an open dropdown
+  // (which closes it in some browsers).
+  const handleSelectGeminiModel = useCallback((model) => {
     setGeminiModel(model);
     if (model) {
       localStorage.setItem('gemini_model', model);
     } else {
       localStorage.removeItem('gemini_model');
     }
-  };
+  }, []);
 
   // Every model picker on the page shows and changes this one choice.
   const geminiModelPicker = {

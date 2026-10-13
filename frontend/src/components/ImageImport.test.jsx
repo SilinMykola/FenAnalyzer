@@ -423,6 +423,17 @@ describe('ImageImport model picker by the countdown', () => {
     expect(onChange).toHaveBeenCalledWith('gemini-2.5-flash-lite');
   });
 
+  it('puts the picker before the countdown, so the ticking text cannot move it', () => {
+    renderWaiting({
+      modelPicker: { value: '', models: [], defaultModel: null, onChange: vi.fn() },
+    });
+
+    const timer = screen.getByRole('timer');
+    expect(inlinePicker().compareDocumentPosition(timer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The text in front of the picker is the same with or without a pause.
+    expect(screen.getByText('or try another model:')).toBeInTheDocument();
+  });
+
   it('points to the header when it has no picker of its own', () => {
     renderWaiting();
 

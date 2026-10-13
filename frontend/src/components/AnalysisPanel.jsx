@@ -145,6 +145,24 @@ export default function AnalysisPanel({
           </div>
         </div>
 
+        {/* The model is always offered here, so it neither appears nor vanishes
+            as a pause starts and ends (a pause after a failed image read locks
+            this button too). It comes first, so the countdown text after it
+            can change without moving an open dropdown. */}
+        {modelPicker && (
+          <div className="gemini-wait ai-wait">
+            <ModelPicker
+              {...modelPicker}
+              label="Model"
+              ariaLabel="Switch Gemini model for the commentary"
+              className="model-picker-inline"
+            />
+            {aiWaitSeconds > 0 && (
+              <span>⏳ Gemini asked to wait {formatCountdown(aiWaitSeconds)} — or switch the model</span>
+            )}
+          </div>
+        )}
+
         {/* Inline API Key settings toggle */}
         {showKeyInput && (
           <form onSubmit={handleSaveKey} className="key-input-form">
@@ -204,24 +222,6 @@ export default function AnalysisPanel({
                 Enter API Key
               </button>
             )}
-          </div>
-        )}
-
-        {/* After a failure or while Gemini asks to wait, offer another model:
-            it has its own quota, and an overloaded model may stay busy. */}
-        {(aiWaitSeconds > 0 || aiError) && modelPicker && (
-          <div className="gemini-wait ai-wait">
-            <span>
-              {aiWaitSeconds > 0
-                ? `⏳ Gemini asked to wait ${formatCountdown(aiWaitSeconds)} — or switch the model:`
-                : 'Try another model:'}
-            </span>
-            <ModelPicker
-              {...modelPicker}
-              label=""
-              ariaLabel="Switch Gemini model for the commentary"
-              className="model-picker-inline"
-            />
           </div>
         )}
 
