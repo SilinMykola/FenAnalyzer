@@ -1351,6 +1351,52 @@ describe('App Gemini model and pause', () => {
     expect(selectedWrites).not.toHaveBeenCalled();
   });
 
+  it('keeps the chosen model after a successful read, also across a reload', async () => {
+    const user = userEvent.setup();
+    vi.mocked(recognizeImage)
+      .mockResolvedValueOnce({ success: false, model: 'gemini-3.8-flash', error: 'overloaded', retry_after_seconds: 0 })
+      .mockResolvedValueOnce({ success: true, fen: '4k3/8/8/8/8/8/8/R3K3 w - - 0 1', turn_detected: true, is_valid: true });
+    const { unmount } = render(<App />);
+    await screen.findByText('Even position (balanced game)');
+    await within(picker()).findByRole('option', { name: 'gemini-2.5-flash-lite' });
+    await uploadScreenshot(user);
+    await user.selectOptions(await screen.findByLabelText('Switch Gemini model for reading images'), 'gemini-2.5-flash-lite');
+    await user.click(screen.getByRole('button', { name: /Try Again/ }));
+    await screen.findByText(/Position recognized/);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe('4k3/8/8/8/8/8/8/R3K3 w - - 0 1'));
+
+    expect(picker()).toHaveValue('gemini-2.5-flash-lite');
+    expect(screen.getByLabelText('Switch Gemini model for reading images')).toHaveValue('gemini-2.5-flash-lite');
+    expect(screen.getByLabelText('Switch Gemini model for the commentary')).toHaveValue('gemini-2.5-flash-lite');
+    expect(localStorage.getItem('gemini_model')).toBe('gemini-2.5-flash-lite');
+    unmount();
+
+    await renderApp();
+
+    expect(picker()).toHaveValue('gemini-2.5-flash-lite');
+  });
+
+  it('reads the image again with another model after a misread', async () => {
+    const user = userEvent.setup();
+    const MISREAD = '4k3/8/8/8/8/8/8/4K2Q w - - 0 1';
+    const RIGHT = '4k3/8/8/8/8/8/8/R3K3 w - - 0 1';
+    vi.mocked(recognizeImage)
+      .mockResolvedValueOnce({ success: true, fen: MISREAD, turn_detected: true, is_valid: true })
+      .mockResolvedValueOnce({ success: true, fen: RIGHT, turn_detected: true, is_valid: true });
+    await renderApp();
+    await within(picker()).findByRole('option', { name: 'gemini-2.5-flash-lite' });
+    await uploadScreenshot(user);
+    await waitFor(() => expect(chessboardProps().position).toBe(MISREAD));
+
+    await user.selectOptions(screen.getByLabelText('Switch Gemini model for reading images'), 'gemini-2.5-flash-lite');
+    await user.click(screen.getByRole('button', { name: /Read Again/ }));
+
+    await waitFor(() => expect(chessboardProps().position).toBe(RIGHT));
+    expect(recognizeImage.mock.calls[1][0].model).toBe('gemini-2.5-flash-lite');
+    expect(recognizeImage.mock.calls[1][0].image_base64).toBe(btoa('png bytes'));
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(RIGHT));
+  });
+
   it('does not pause after an error that is not about load or quota', async () => {
     const user = userEvent.setup();
     vi.mocked(getAiCommentary).mockResolvedValue({

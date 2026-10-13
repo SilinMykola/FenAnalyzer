@@ -14,8 +14,8 @@ const PASTE_HINT = 'press Ctrl+V / ⌘V to paste the image instead';
  *                error, fen, turnDetected, isValid }
  * waitSeconds: how long Gemini asked to wait before the next request; Try
  *              Again stays locked until it runs out.
- * modelPicker: props for a ModelPicker shown next to that countdown, since
- *              another model has its own quota and can be asked at once.
+ * modelPicker: props for a ModelPicker always shown in the box: another model
+ *              may read a picture better, and has its own quota.
  */
 export default function ImageImport({
   onImage,
@@ -49,7 +49,8 @@ export default function ImageImport({
     onImage(file);
   };
 
-  // Sends the same image again, e.g. after Gemini was overloaded.
+  // Sends the same image again: after Gemini was overloaded, or with another
+  // model after a misread.
   const handleRetry = () => {
     if (recognizing || !lastImage || waitSeconds > 0) return;
     onImage(lastImage);
@@ -118,7 +119,11 @@ export default function ImageImport({
 
   const error = localError || (recognition.status === 'error' ? recognition.error : null);
   const sideToMove = recognition.fen?.split(' ')[1] === 'b' ? 'Black' : 'White';
-  const canRetry = !localError && recognition.status === 'error' && Boolean(lastImage);
+  // Offered after a failure and after a result, which may be a misread.
+  const canRetry =
+    !localError &&
+    Boolean(lastImage) &&
+    (recognition.status === 'error' || recognition.status === 'done');
   const hasSomethingToClear = Boolean(previewUrl || localError || recognition.status !== 'idle');
 
   return (
@@ -181,6 +186,20 @@ export default function ImageImport({
             )}
           </div>
 
+          {/* Always here, so the model can be chosen before the first read and
+              changed for another try. On its own line, so nothing around it
+              moves an open dropdown. */}
+          {modelPicker && (
+            <div className="image-model-row">
+              <ModelPicker
+                {...modelPicker}
+                label="Model"
+                ariaLabel="Switch Gemini model for reading images"
+                className="model-picker-inline"
+              />
+            </div>
+          )}
+
           {recognizing && (
             <p className="image-status">
               <span className="spinner"></span> Reading the position from the image...
@@ -188,42 +207,6 @@ export default function ImageImport({
           )}
 
           {error && <div className="image-error">⚠️ {error}</div>}
-
-          {canRetry && (
-            <div className="presets-buttons">
-              <button
-                type="button"
-                className="preset-btn"
-                onClick={handleRetry}
-                disabled={waitSeconds > 0}
-              >
-                🔁 Try Again
-              </button>
-              {/* Another model is offered after any failure, not only during a
-                  pause: an overloaded model may stay busy long after it. The
-                  picker comes before the countdown, so nothing in front of it
-                  changes while it ticks and an open dropdown stays put. */}
-              <span className="gemini-wait">
-                {modelPicker && (
-                  <>
-                    <span>or try another model:</span>
-                    <ModelPicker
-                      {...modelPicker}
-                      label=""
-                      ariaLabel="Switch Gemini model for reading images"
-                      className="model-picker-inline"
-                    />
-                  </>
-                )}
-                {waitSeconds > 0 && (
-                  <span role="timer">⏳ Gemini asked to wait {formatCountdown(waitSeconds)}</span>
-                )}
-                {!modelPicker && waitSeconds > 0 && (
-                  <span>— or choose another model at the top</span>
-                )}
-              </span>
-            </div>
-          )}
 
           {!localError && recognition.status === 'done' && recognition.isValid && (
             <div className="image-result">
@@ -248,6 +231,26 @@ export default function ImageImport({
               <button type="button" className="preset-btn" onClick={onEditInEditor}>
                 🧩 Fix in Board Editor
               </button>
+            </div>
+          )}
+
+          {canRetry && (
+            <div className="presets-buttons">
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={handleRetry}
+                disabled={waitSeconds > 0}
+                title="Send the same image again, to the model chosen above"
+              >
+                {recognition.status === 'done' ? '🔁 Read Again' : '🔁 Try Again'}
+              </button>
+              {waitSeconds > 0 && (
+                <span className="gemini-wait" role="timer">
+                  ⏳ Gemini asked to wait {formatCountdown(waitSeconds)}
+                  {modelPicker ? ' — or choose another model above' : ' — or choose another model at the top'}
+                </span>
+              )}
             </div>
           )}
         </div>

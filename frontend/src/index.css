@@ -2108,3 +2108,9 @@ body {
 .move-line-start code {
   color: var(--text-soft);
 }
+
+/* Model choice in the image box, on its own line */
+.image-model-row {
+  display: flex;
+  margin-top: 8px;
+}

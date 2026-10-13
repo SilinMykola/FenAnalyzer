@@ -430,8 +430,6 @@ describe('ImageImport model picker by the countdown', () => {
 
     const timer = screen.getByRole('timer');
     expect(inlinePicker().compareDocumentPosition(timer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // The text in front of the picker is the same with or without a pause.
-    expect(screen.getByText('or try another model:')).toBeInTheDocument();
   });
 
   it('points to the header when it has no picker of its own', () => {
@@ -449,12 +447,11 @@ describe('ImageImport model picker by the countdown', () => {
     });
 
     expect(screen.queryByRole('timer')).not.toBeInTheDocument();
-    expect(screen.getByText('or try another model:')).toBeInTheDocument();
     expect(inlinePicker()).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Try Again/ })).toBeEnabled();
   });
 
-  it('shows no picker when nothing failed', () => {
+  it('always shows the picker, also after a successful read', () => {
     const picker = { value: '', models: [], defaultModel: null, onChange: vi.fn() };
     render(
       <ImageImport
@@ -466,6 +463,59 @@ describe('ImageImport model picker by the countdown', () => {
       />
     );
 
-    expect(inlinePicker()).not.toBeInTheDocument();
+    expect(inlinePicker()).toBeInTheDocument();
+  });
+
+  it('shows the picker before any image, so the model can be chosen first', () => {
+    const picker = { value: '', models: [], defaultModel: null, onChange: vi.fn() };
+    render(
+      <ImageImport recognition={IDLE} onImage={vi.fn()} onEditInEditor={vi.fn()} onClear={vi.fn()} modelPicker={picker} />
+    );
+
+    expect(inlinePicker()).toBeInTheDocument();
+  });
+});
+
+describe('ImageImport reading again', () => {
+  const readAgain = () => screen.queryByRole('button', { name: /Read Again/ });
+  const RESULT = { status: 'done', fen: '4k3/8/8/8/8/8/8/4K3 w - - 0 1', isValid: true };
+
+  it('sends the same image again after a result, e.g. a misread', async () => {
+    const user = userEvent.setup();
+    const { onImage, rerender } = renderImport();
+    const file = imageFile();
+    fireEvent.change(fileInput(), { target: { files: [file] } });
+    rerender(RESULT);
+
+    await user.click(readAgain());
+
+    expect(onImage).toHaveBeenCalledTimes(2);
+    expect(onImage.mock.lastCall[0]).toBe(file);
+  });
+
+  it('is offered after an illegal position too', () => {
+    const { rerender } = renderImport();
+    fireEvent.change(fileInput(), { target: { files: [imageFile()] } });
+
+    rerender({ ...RESULT, isValid: false });
+
+    expect(readAgain()).toBeEnabled();
+  });
+
+  it('is not offered for a result whose image this box no longer has', () => {
+    renderImport(RESULT);
+
+    expect(readAgain()).not.toBeInTheDocument();
+  });
+
+  it('waits out a pause like Try Again does', () => {
+    const callbacks = { onImage: vi.fn(), onEditInEditor: vi.fn(), onClear: vi.fn() };
+    const { rerender } = render(<ImageImport recognition={IDLE} {...callbacks} />);
+    fireEvent.change(fileInput(), { target: { files: [imageFile()] } });
+
+    rerender(<ImageImport recognition={RESULT} waitSeconds={20} {...callbacks} />);
+
+    expect(readAgain()).toBeDisabled();
+    expect(screen.getByRole('timer')).toHaveTextContent('0:20');
   });
 });
