@@ -37,12 +37,23 @@ async function postJson(url, body) {
   return response.json();
 }
 
-export async function analyzeFen(fen, depth = 16, multipv = 3) {
+export async function analyzeFen(fen, depth = 16, multipv = 3, chess960 = false) {
   return postJson('/api/analyze', {
     fen: fen.trim(),
     depth: Number(depth),
     multipv: Number(multipv),
+    // Only sent for a Chess960 game, so Stockfish plays its castling.
+    chess960: chess960 || undefined,
   });
+}
+
+/**
+ * Replays a PGN on the backend, which knows Chess960 (chess.js does not).
+ * Resolves to { success, headers, moves: [{ san, uci, color, before }],
+ * fens, chess960, error }.
+ */
+export async function parsePgn(pgn) {
+  return postJson('/api/parse-pgn', { pgn });
 }
 
 export async function checkBackendHealth() {

@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import binascii
+import io
 import json
 import math
 import os
@@ -10,6 +11,7 @@ from typing import List, Literal, Optional
 
 import chess
 import chess.engine
+import chess.pgn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,6 +80,10 @@ class AnalyzeRequest(BaseModel):
     )
     depth: int = Field(default=16, ge=1, le=30, description="Search depth for Stockfish")
     multipv: int = Field(default=3, ge=1, le=5, description="Number of top lines to evaluate")
+    chess960: bool = Field(
+        default=False,
+        description="Read the FEN as a Chess960 position; also assumed when castling names rook files",
+    )
 
 
 class LineInfo(BaseModel):
@@ -222,6 +228,13 @@ def explain_move(board: chess.Board, move: chess.Move) -> str:
     return " & ".join(parts)
 
 
+def names_rook_files(fen: str) -> bool:
+    """Whether the FEN's castling field names rook files (Shredder-FEN, "DAda"),
+    which only a Chess960 position has."""
+    fields = fen.split()
+    return len(fields) > 2 and bool(re.search(r"[A-Ha-h]", fields[2]))
+
+
 @app.get("/api/health")
 def health_check():
     gemini_key = os.environ.get("GEMINI_API_KEY")
@@ -238,7 +251,7 @@ def analyze_position(payload: AnalyzeRequest):
     fen = payload.fen.strip()
 
     try:
-        board = chess.Board(fen)
+        board = chess.Board(fen, chess960=payload.chess960 or names_rook_files(fen))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid FEN string: {e}")
 
@@ -982,4 +995,66 @@ async def recognize_image(payload: RecognizeImageRequest):
         is_valid=board.is_valid(),
         seen_from_black=seen_from_black,
         model=model_name,
+    )
+
+
+# ── PGN parsing for Chess960 ───────────────────────────────────────────────────
+# The frontend parses ordinary games itself with chess.js, which knows nothing
+# of Chess960. Those games, castling included, are parsed here.
+
+
+class ParsePgnRequest(BaseModel):
+    pgn: str = Field(..., max_length=200_000)
+
+
+class ParsedMove(BaseModel):
+    san: str
+    uci: str
+    color: str  # "w" or "b"
+    before: str  # FEN of the position the move is played in
+
+
+class ParsePgnResponse(BaseModel):
+    success: bool
+    headers: dict = {}
+    moves: List[ParsedMove] = []
+    # The start position and the position after every move, in Shredder-FEN
+    # for Chess960 (castling as rook files, like Chess.com writes it).
+    fens: List[str] = []
+    chess960: bool = False
+    error: Optional[str] = None
+
+
+@app.post("/api/parse-pgn", response_model=ParsePgnResponse)
+def parse_pgn(payload: ParsePgnRequest):
+    """Replays a PGN with python-chess, which plays Chess960 castling."""
+    game = chess.pgn.read_game(io.StringIO(payload.pgn))
+    if game is None:
+        return ParsePgnResponse(success=False, error="Failed to parse PGN: no game found")
+    if game.errors:
+        return ParsePgnResponse(success=False, error=f"Failed to parse PGN: {game.errors[0]}")
+
+    board = game.board()
+    fen_of = (lambda b: b.shredder_fen()) if board.chess960 else (lambda b: b.fen())
+    fens = [fen_of(board)]
+    moves = []
+    for move in game.mainline_moves():
+        before = fen_of(board)
+        moves.append(
+            ParsedMove(
+                san=board.san(move),
+                uci=move.uci(),
+                color="w" if board.turn == chess.WHITE else "b",
+                before=before,
+            )
+        )
+        board.push(move)
+        fens.append(fen_of(board))
+
+    return ParsePgnResponse(
+        success=True,
+        headers=dict(game.headers),
+        moves=moves,
+        fens=fens,
+        chess960=board.chess960,
     )

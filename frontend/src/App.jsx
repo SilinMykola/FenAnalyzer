@@ -13,10 +13,11 @@ import {
   checkBackendHealth,
   getAiCommentary,
   listGeminiModels,
+  parsePgn,
   recognizeImage,
 } from './api/chessApi';
 import { readImageAsBase64 } from './utils/imageFile';
-import { isChess960Pgn, withStandardCastlingPgn } from './utils/pgn';
+import { isChess960Pgn, withStandardCastling, withStandardCastlingPgn } from './utils/pgn';
 import { addMove, goTo, shownFen, startLine } from './utils/moveLine';
 import { getPositionError, rotateFen } from './utils/editorFen';
 import { playMoveSound } from './utils/sound';
@@ -35,6 +36,21 @@ export default function App() {
 
   // Internal chess.js instance for rules, move validation, and PGN parsing
   const gameRef = useRef(new Chess());
+  // Whether the position on the board comes from a Chess960 game. Stockfish
+  // then plays Chess960 castling; a ref, so analysis reads it at once.
+  const chess960Ref = useRef(false);
+
+  // Loads a position into chess.js, which knows only standard castling: rights
+  // written as rook files (a Chess960 game) are dropped there. The board and
+  // the analysis keep the full FEN. Returns whether chess.js took it.
+  const loadGame = (newFen) => {
+    try {
+      gameRef.current.load(withStandardCastling(newFen));
+      return true;
+    } catch {
+      return false;
+    }
+  };
   // The position on the board, and the text in the FEN box. They are the same
   // except after a reset, which puts the starting position on the board but
   // leaves the box empty for the next FEN.
@@ -159,7 +175,7 @@ export default function App() {
       setEvalExplanation({ status: 'idle' });
 
       try {
-        const data = await analyzeFen(fenToAnalyze, targetDepth, targetMultipv);
+        const data = await analyzeFen(fenToAnalyze, targetDepth, targetMultipv, chess960Ref.current);
         setAnalysis(data);
         setBackendOnline(true);
       } catch (err) {
@@ -189,7 +205,7 @@ export default function App() {
     const targetFen = shownFen(target);
     setMoveLine(target);
     setVariationPreview(null);
-    gameRef.current.load(targetFen);
+    loadGame(targetFen);
     showPosition(targetFen);
     playMoveSound(false);
     triggerAnalysis(targetFen);
@@ -200,19 +216,18 @@ export default function App() {
     setVariationPreview(null);
     showPosition(newFen);
     setError(null);
-    try {
-      gameRef.current.load(newFen);
+    // A half-typed FEN does not load; the board and list wait for a full one.
+    if (loadGame(newFen)) {
+      chess960Ref.current = false;
       setOrientation(sideToMove(newFen));
       setMoveLine(startLine(newFen));
-    } catch (e) {
-      // Allow partial typing in input
     }
   };
 
   // Preview interactive moves from Stockfish PV
   const handlePreviewVariation = (lineRank, moves, stepIndex) => {
     try {
-      const tempGame = new Chess(fen);
+      const tempGame = new Chess(withStandardCastling(fen));
       for (let i = 0; i <= stepIndex; i++) {
         tempGame.move(moves[i]);
       }
@@ -249,7 +264,7 @@ export default function App() {
     if (!variationPreview) return;
     const targetFen = variationPreview.previewFen;
     // The engine moves become the user's moves, so they can be stepped back.
-    const replay = new Chess(fen);
+    const replay = new Chess(withStandardCastling(fen));
     let line = moveLine;
     for (let i = 0; i <= variationPreview.stepIndex; i++) {
       const move = replay.move(variationPreview.moves[i]);
@@ -266,6 +281,7 @@ export default function App() {
   // Reset to Starting Position (Clears board, PGN, and inputs)
   const handleResetToStartingPosition = () => {
     setVariationPreview(null);
+    chess960Ref.current = false;
     gameRef.current.load(DEFAULT_FEN);
     setFen(DEFAULT_FEN);
     setFenInput('');
@@ -333,8 +349,42 @@ export default function App() {
     }
   };
 
-  // PGN Import & Parsing
-  const handleLoadPgn = (pgnString) => {
+  // Puts a parsed game on the board at its final position. moves carry san,
+  // color and before (the FEN before the move); fens are the start position
+  // and the position after every move.
+  const showLoadedGame = (headers, moves, fens, chess960) => {
+    chess960Ref.current = chess960;
+    pgnFensRef.current = fens;
+    setPgnMoves(moves);
+    setPgnHeaders(headers);
+    setCurrentMoveIndex(moves.length - 1);
+
+    const finalFen = fens[fens.length - 1];
+    loadGame(finalFen);
+    showPosition(finalFen);
+    setOrientation(sideToMove(finalFen));
+    setMoveLine(startLine(finalFen));
+    triggerAnalysis(finalFen);
+    setError(null);
+  };
+
+  // PGN Import & Parsing. chess.js has no Chess960, so those games are
+  // replayed by the backend, castling included.
+  const handleLoadPgn = async (pgnString) => {
+    if (isChess960Pgn(pgnString)) {
+      try {
+        const res = await parsePgn(pgnString);
+        if (!res.success) {
+          setError(res.error || 'Failed to parse PGN');
+          return;
+        }
+        showLoadedGame(res.headers, res.moves, res.fens, res.chess960);
+      } catch (err) {
+        setError(`Failed to parse PGN: ${err.message}`);
+      }
+      return;
+    }
+
     try {
       const pgnGame = new Chess();
       pgnGame.loadPgn(withStandardCastlingPgn(pgnString));
@@ -350,27 +400,9 @@ export default function App() {
         replayGame.move(m);
         fens.push(replayGame.fen());
       }
-
-      pgnFensRef.current = fens;
-      setPgnMoves(history);
-      setPgnHeaders(headers);
-      setCurrentMoveIndex(history.length - 1);
-
-      // Set board to final position of the game
-      const finalFen = fens[fens.length - 1];
-      gameRef.current.load(finalFen);
-      showPosition(finalFen);
-      setOrientation(sideToMove(finalFen));
-      setMoveLine(startLine(finalFen));
-      triggerAnalysis(finalFen);
-      setError(null);
+      showLoadedGame(headers, history, fens, false);
     } catch (err) {
-      const chess960Castling = isChess960Pgn(pgnString) && /O-O/.test(err.message);
-      setError(
-        chess960Castling
-          ? 'Failed to parse PGN: castling in Chess960 games is not supported'
-          : `Failed to parse PGN: ${err.message}`
-      );
+      setError(`Failed to parse PGN: ${err.message}`);
     }
   };
 
@@ -379,7 +411,7 @@ export default function App() {
     if (index < -1 || index >= pgnMoves.length) return;
     setCurrentMoveIndex(index);
     const targetFen = pgnFensRef.current[index + 1] || DEFAULT_FEN;
-    gameRef.current.load(targetFen);
+    loadGame(targetFen);
     showPosition(targetFen);
     setMoveLine(startLine(targetFen));
     playMoveSound(false);
@@ -471,6 +503,7 @@ export default function App() {
   // analyzes it; recognition holds what the box shows about it.
   const showRecognizedPosition = (recognition) => {
     setVariationPreview(null);
+    chess960Ref.current = false;
     setError(null);
     try {
       gameRef.current.load(recognition.fen);
@@ -671,6 +704,7 @@ export default function App() {
             initialFen={fen}
             onApplyFen={(newFen) => {
               setVariationPreview(null);
+              chess960Ref.current = false;
               // The editor only lets a legal position through, so chess.js takes it.
               gameRef.current.load(newFen);
               showPosition(newFen);

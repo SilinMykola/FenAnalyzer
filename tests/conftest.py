@@ -19,6 +19,7 @@ class FakeEngine:
         self.configure_error = configure_error
         self.configured = {}
         self.calls = []
+        self.boards = []
 
     def __enter__(self):
         return self
@@ -33,6 +34,7 @@ class FakeEngine:
 
     def analyse(self, board, limit, multipv=None):
         self.calls.append({"fen": board.fen(), "depth": limit.depth, "multipv": multipv})
+        self.boards.append(board.copy())
         if self.error:
             raise self.error
         return self.info

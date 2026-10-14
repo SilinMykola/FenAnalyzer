@@ -825,3 +825,123 @@ class TestExplainEvaluation:
 
         assert response.status_code == 422
         assert gemini.requests == []
+
+
+# A Chess960 game from the user's start position in which both sides castle.
+CHESS960_START = "rbkrnqbn/pppppppp/8/8/8/8/PPPPPPPP/RBKRNQBN w DAda - 0 1"
+CHESS960_PGN = f"""[Event "Chess960"]
+[White "Kolanimir"]
+[Black "Lucien093"]
+[Result "*"]
+[Variant "Chess960"]
+[SetUp "1"]
+[FEN "{CHESS960_START}"]
+
+1. Nf3 Nf6 2. Re1 Re8 3. c3 c6 4. Bxh7 Bxh2 5. O-O-O O-O-O *"""
+
+
+def parse(pgn):
+    return client.post("/api/parse-pgn", json={"pgn": pgn}).json()
+
+
+class TestParsePgn:
+    def test_replays_a_chess960_game_with_castling(self):
+        body = parse(CHESS960_PGN)
+
+        assert body["success"] is True
+        assert body["chess960"] is True
+        assert [m["san"] for m in body["moves"]][-2:] == ["O-O-O", "O-O-O"]
+        assert len(body["moves"]) == 10
+        assert len(body["fens"]) == 11
+        assert body["fens"][0] == CHESS960_START
+        assert body["headers"]["White"] == "Kolanimir"
+
+    def test_writes_castling_rights_as_rook_files_like_chess_com(self):
+        body = parse(CHESS960_PGN)
+
+        assert body["fens"][0].split()[2] == "DAda"
+        # Re1 and Re8 moved the d-file rooks, so only the a-file rights are
+        # left before both sides castle long.
+        assert body["fens"][8].split()[2] == "Aa"
+        # Castled: the rights are gone.
+        assert body["fens"][-1].split()[2] == "-"
+
+    def test_describes_each_move_for_the_move_list(self):
+        first, second = parse(CHESS960_PGN)["moves"][:2]
+
+        assert first == {"san": "Nf3", "uci": "e1f3", "color": "w", "before": CHESS960_START}
+        assert second["color"] == "b"
+        assert second["before"] == parse(CHESS960_PGN)["fens"][1]
+
+    def test_the_positions_follow_the_moves(self):
+        body = parse(CHESS960_PGN)
+
+        board = chess.Board(CHESS960_START, chess960=True)
+        for move, fen in zip(body["moves"], body["fens"][1:]):
+            board.push_uci(move["uci"])
+            assert board.shredder_fen() == fen
+
+    def test_parses_an_ordinary_game_too(self):
+        body = parse("1. e4 e5 2. Nf3 *")
+
+        assert body["success"] is True
+        assert body["chess960"] is False
+        assert body["fens"][-1] == "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"
+
+    def test_reports_an_illegal_move(self):
+        body = parse(CHESS960_PGN.replace("5. O-O-O O-O-O", "5. O-O O-O"))
+
+        assert body["success"] is False
+        assert body["error"].startswith("Failed to parse PGN:")
+        assert "O-O" in body["error"]
+
+    def test_reports_text_without_a_game(self):
+        body = parse("")
+
+        assert body["success"] is False
+        assert body["error"] == "Failed to parse PGN: no game found"
+
+
+class TestAnalyzeChess960:
+    def fen_after_castling(self):
+        return parse(CHESS960_PGN)["fens"][-1]
+
+    def test_reads_rook_file_castling_as_chess960(self, fake_engine):
+        engine = fake_engine([])
+        before_castling = parse(CHESS960_PGN)["fens"][8]
+
+        response = analyze(before_castling)
+
+        assert response.status_code == 200
+        assert engine.boards[0].chess960 is True
+        # The castling rights survived; a standard board would have dropped them.
+        assert engine.boards[0].has_castling_rights(chess.WHITE)
+
+    def test_takes_the_chess960_flag_for_a_fen_without_rights(self, fake_engine):
+        engine = fake_engine([])
+
+        analyze(self.fen_after_castling(), chess960=True)
+
+        assert engine.boards[0].chess960 is True
+
+    def test_reads_an_ordinary_fen_as_standard_chess(self, fake_engine):
+        engine = fake_engine([])
+
+        analyze()
+
+        assert engine.boards[0].chess960 is False
+
+
+@pytest.mark.skipif(
+    not (shutil.which(main.STOCKFISH_PATH) or main.os.path.isfile(main.STOCKFISH_PATH)),
+    reason="Stockfish is not installed",
+)
+def test_real_stockfish_analyzes_a_chess960_position_before_castling():
+    fen = parse(CHESS960_PGN)["fens"][8]
+
+    body = analyze(fen, depth=8, multipv=3).json()
+
+    board = chess.Board(fen, chess960=True)
+    legal = {move.uci() for move in board.legal_moves}
+    assert body["lines"]
+    assert {entry["move_uci"] for entry in body["lines"]} <= legal

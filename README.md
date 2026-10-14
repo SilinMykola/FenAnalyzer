@@ -42,7 +42,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 ### 📋 PGN Game Explorer
 - Import and parse games from **Chess.com** or **Lichess** (including custom starting FEN tournaments)
 - Once loaded, the board shows the final position with the side to move at the bottom
-- **Chess960 games** from Chess.com load too, as long as nobody castles: the castling rights Chess.com writes as rook files (`DAda`) are dropped, because the board cannot play Chess960 castling
+- **Chess960 games** from Chess.com load completely, castling included: chess.js in the browser knows no Chess960, so a PGN tagged `[Variant "Chess960"]` is replayed by the backend with python-chess. Castling rights stay written as rook files (`DAda`), as Chess.com writes them, and every position is analyzed in Chess960 mode, so Stockfish's lines include Chess960 castling. Moves dragged on the board in such a position work, except castling itself, and they drop the castling rights from then on
 - **Chess.com-style scoresheet table** — moves displayed in a 3-column table (`#` / `⚪ White` / `⚫ Black`) with sticky header
 - **Active move highlighted** with a blue background and glow ring; table **auto-scrolls** to keep the current move in view
 - **Game metadata** — displays player names, ELO ratings, event name, date, and color-coded result badge (`1–0` / `0–1` / `½–½`)
@@ -111,6 +111,7 @@ interactively, build custom positions, and get natural language grandmaster coac
                          │  POST /api/ai-commentary
                          │  POST /api/recognize-image
                          │  POST /api/gemini-models
+                         │  POST /api/parse-pgn
                          │  GET  /api/health
                          ▼
 ┌─────────────────────────────────────────────────┐
@@ -231,9 +232,12 @@ Analyzes a chess position with Stockfish.
 {
   "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
   "depth": 16,
-  "multipv": 3
+  "multipv": 3,
+  "chess960": false
 }
 ```
+`chess960` (optional) analyzes the position as Chess960, so Stockfish plays Chess960 castling. A FEN
+whose castling field names rook files (`DAda`) is read as Chess960 without it.
 
 **Response:**
 ```json
@@ -346,6 +350,25 @@ against the generation quota.
 ```
 Only models that can write text are listed; embedding, speech, audio, live and image-generation
 models are left out.
+
+### `POST /api/parse-pgn`
+Replays a PGN with python-chess. The frontend uses it for Chess960 games, which chess.js cannot play.
+
+**Request:** `{ "pgn": "[Variant \"Chess960\"] ... 5. O-O-O O-O-O *" }`
+
+**Response:**
+```json
+{
+  "success": true,
+  "headers": { "White": "Kolanimir", "Variant": "Chess960", "FEN": "rbkrnqbn/pppppppp/8/8/8/8/PPPPPPPP/RBKRNQBN w DAda - 0 1" },
+  "moves": [{ "san": "Nf3", "uci": "e1f3", "color": "w", "before": "rbkrnqbn/pppppppp/8/8/8/8/PPPPPPPP/RBKRNQBN w DAda - 0 1" }],
+  "fens": ["rbkrnqbn/pppppppp/8/8/8/8/PPPPPPPP/RBKRNQBN w DAda - 0 1", "..."],
+  "chess960": true,
+  "error": null
+}
+```
+`fens` holds the start position and the position after every move; for Chess960 they are
+Shredder-FENs (castling as rook files). An illegal move gives `success: false` and the reason.
 
 ### `GET /api/health`
 Returns engine availability and API key configuration status.

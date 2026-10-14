@@ -8,6 +8,7 @@ import {
   checkBackendHealth,
   getAiCommentary,
   listGeminiModels,
+  parsePgn,
   recognizeImage,
 } from './api/chessApi';
 import { chessboardProps } from './test/mockChessboard';
@@ -66,6 +67,109 @@ const CHESS960_PGN = `[Event "Chess960"]
 1. f4 f5 2. Bd4 Nf6 3. c3 Bc4 4. d3 Bd5 *`;
 const CHESS960_FINAL = 'rbkr1q1n/ppppp1pp/5n2/3b1p2/3B1P2/2PP4/PP2P1PP/RBKRNQ1N w - - 1 5';
 
+// A Chess960 game in which both sides castle long, as the backend's
+// /api/parse-pgn returns it (taken from the real endpoint).
+const CASTLING_960_PGN = `[White "Kolanimir"]
+[Black "Lucien093"]
+[Variant "Chess960"]
+[SetUp "1"]
+[FEN "rbkrnqbn/pppppppp/8/8/8/8/PPPPPPPP/RBKRNQBN w DAda - 0 1"]
+
+1. Nf3 Nf6 2. Re1 Re8 3. c3 c6 4. Bxh7 Bxh2 5. O-O-O O-O-O *`;
+const CASTLING_960_PARSED = {
+  "success": true,
+  "headers": {
+    "Event": "?",
+    "Site": "?",
+    "Date": "????.??.??",
+    "Round": "?",
+    "White": "Kolanimir",
+    "Black": "Lucien093",
+    "Result": "*",
+    "Variant": "Chess960",
+    "SetUp": "1",
+    "FEN": "rbkrnqbn/pppppppp/8/8/8/8/PPPPPPPP/RBKRNQBN w DAda - 0 1"
+  },
+  "moves": [
+    {
+      "san": "Nf3",
+      "uci": "e1f3",
+      "color": "w",
+      "before": "rbkrnqbn/pppppppp/8/8/8/8/PPPPPPPP/RBKRNQBN w DAda - 0 1"
+    },
+    {
+      "san": "Nf6",
+      "uci": "e8f6",
+      "color": "b",
+      "before": "rbkrnqbn/pppppppp/8/8/8/5N2/PPPPPPPP/RBKR1QBN b DAda - 1 1"
+    },
+    {
+      "san": "Re1",
+      "uci": "d1e1",
+      "color": "w",
+      "before": "rbkr1qbn/pppppppp/5n2/8/8/5N2/PPPPPPPP/RBKR1QBN w DAda - 2 2"
+    },
+    {
+      "san": "Re8",
+      "uci": "d8e8",
+      "color": "b",
+      "before": "rbkr1qbn/pppppppp/5n2/8/8/5N2/PPPPPPPP/RBK1RQBN b Ada - 3 2"
+    },
+    {
+      "san": "c3",
+      "uci": "c2c3",
+      "color": "w",
+      "before": "rbk1rqbn/pppppppp/5n2/8/8/5N2/PPPPPPPP/RBK1RQBN w Aa - 4 3"
+    },
+    {
+      "san": "c6",
+      "uci": "c7c6",
+      "color": "b",
+      "before": "rbk1rqbn/pppppppp/5n2/8/8/2P2N2/PP1PPPPP/RBK1RQBN b Aa - 0 3"
+    },
+    {
+      "san": "Bxh7",
+      "uci": "b1h7",
+      "color": "w",
+      "before": "rbk1rqbn/pp1ppppp/2p2n2/8/8/2P2N2/PP1PPPPP/RBK1RQBN w Aa - 0 4"
+    },
+    {
+      "san": "Bxh2",
+      "uci": "b8h2",
+      "color": "b",
+      "before": "rbk1rqbn/pp1ppppB/2p2n2/8/8/2P2N2/PP1PPPPP/R1K1RQBN b Aa - 0 4"
+    },
+    {
+      "san": "O-O-O",
+      "uci": "c1a1",
+      "color": "w",
+      "before": "r1k1rqbn/pp1ppppB/2p2n2/8/8/2P2N2/PP1PPPPb/R1K1RQBN w Aa - 0 5"
+    },
+    {
+      "san": "O-O-O",
+      "uci": "c8a8",
+      "color": "b",
+      "before": "r1k1rqbn/pp1ppppB/2p2n2/8/8/2P2N2/PP1PPPPb/2KRRQBN b a - 1 5"
+    }
+  ],
+  "fens": [
+    "rbkrnqbn/pppppppp/8/8/8/8/PPPPPPPP/RBKRNQBN w DAda - 0 1",
+    "rbkrnqbn/pppppppp/8/8/8/5N2/PPPPPPPP/RBKR1QBN b DAda - 1 1",
+    "rbkr1qbn/pppppppp/5n2/8/8/5N2/PPPPPPPP/RBKR1QBN w DAda - 2 2",
+    "rbkr1qbn/pppppppp/5n2/8/8/5N2/PPPPPPPP/RBK1RQBN b Ada - 3 2",
+    "rbk1rqbn/pppppppp/5n2/8/8/5N2/PPPPPPPP/RBK1RQBN w Aa - 4 3",
+    "rbk1rqbn/pppppppp/5n2/8/8/2P2N2/PP1PPPPP/RBK1RQBN b Aa - 0 3",
+    "rbk1rqbn/pp1ppppp/2p2n2/8/8/2P2N2/PP1PPPPP/RBK1RQBN w Aa - 0 4",
+    "rbk1rqbn/pp1ppppB/2p2n2/8/8/2P2N2/PP1PPPPP/R1K1RQBN b Aa - 0 4",
+    "r1k1rqbn/pp1ppppB/2p2n2/8/8/2P2N2/PP1PPPPb/R1K1RQBN w Aa - 0 5",
+    "r1k1rqbn/pp1ppppB/2p2n2/8/8/2P2N2/PP1PPPPb/2KRRQBN b a - 1 5",
+    "2krrqbn/pp1ppppB/2p2n2/8/8/2P2N2/PP1PPPPb/2KRRQBN w - - 2 6"
+  ],
+  "chess960": true,
+  "error": null
+};
+
+
 // Every FEN the backend has been asked to analyze, in order.
 const analyzedFens = () => analyzeFen.mock.calls.map(([fen]) => fen);
 const lastAnalyzedFen = () => analyzedFens().at(-1);
@@ -91,7 +195,7 @@ describe('App start-up', () => {
   it('analyzes the starting position with depth 16 and 3 lines', async () => {
     await renderApp();
 
-    expect(analyzeFen).toHaveBeenCalledWith(START_FEN, 16, 3);
+    expect(analyzeFen).toHaveBeenCalledWith(START_FEN, 16, 3, false);
     expect(chessboardProps().position).toBe(START_FEN);
   });
 
@@ -286,27 +390,62 @@ describe('App PGN tab', () => {
     expect(screen.getByText(/Failed to parse PGN/)).toBeInTheDocument();
   });
 
-  it('loads a Chess960 game exported by Chess.com', async () => {
+  it('has the backend replay a Chess960 game, castling included', async () => {
     const user = userEvent.setup();
+    vi.mocked(parsePgn).mockResolvedValue(CASTLING_960_PARSED);
     await renderApp();
 
-    await loadPgn(user, CHESS960_PGN);
+    await loadPgn(user, CASTLING_960_PGN);
 
+    expect(parsePgn).toHaveBeenCalledWith(CASTLING_960_PGN);
     expect(screen.queryByText(/Failed to parse PGN/)).not.toBeInTheDocument();
-    expect(document.querySelector('.pgn-counter')).toHaveTextContent('Move 8 / 8');
-    expect(chessboardProps().position).toBe(CHESS960_FINAL);
-    await waitFor(() => expect(lastAnalyzedFen()).toBe(CHESS960_FINAL));
+    expect(screen.getByText('Kolanimir vs Lucien093')).toBeInTheDocument();
+    expect(document.querySelector('.pgn-counter')).toHaveTextContent('Move 10 / 10');
+    expect(screen.getAllByText('O-O-O')).toHaveLength(2);
+    const finalFen = CASTLING_960_PARSED.fens.at(-1);
+    expect(chessboardProps().position).toBe(finalFen);
+    // Analyzed as Chess960, so Stockfish plays Chess960 castling.
+    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(finalFen, 16, 3, true));
   });
 
-  it('explains that castling in a Chess960 game is not supported', async () => {
+  it('steps back before castling and keeps the rights written as rook files', async () => {
     const user = userEvent.setup();
+    vi.mocked(parsePgn).mockResolvedValue(CASTLING_960_PARSED);
+    await renderApp();
+    await loadPgn(user, CASTLING_960_PGN);
+
+    await user.click(screen.getByTitle(/Previous move/));
+    await user.click(screen.getByTitle(/Previous move/));
+
+    const beforeCastling = CASTLING_960_PARSED.fens[8];
+    expect(beforeCastling.split(' ')[2]).toBe('Aa');
+    expect(chessboardProps().position).toBe(beforeCastling);
+    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(beforeCastling, 16, 3, true));
+  });
+
+  it("shows the backend's reason when a Chess960 game cannot be read", async () => {
+    const user = userEvent.setup();
+    vi.mocked(parsePgn).mockResolvedValue({
+      success: false,
+      error: "Failed to parse PGN: illegal san: 'O-O' in r1k1rqbn/...",
+    });
     await renderApp();
 
-    await loadPgn(user, CHESS960_PGN.replace('4. d3 Bd5 *', '4. d3 Bd5 5. O-O *'));
+    await loadPgn(user, CASTLING_960_PGN);
 
-    expect(
-      screen.getByText(/Failed to parse PGN: castling in Chess960 games is not supported/)
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Failed to parse PGN: illegal san: 'O-O'/)).toBeInTheDocument();
+  });
+
+  it('goes back to standard analysis once an ordinary game is loaded', async () => {
+    const user = userEvent.setup();
+    vi.mocked(parsePgn).mockResolvedValue(CASTLING_960_PARSED);
+    await renderApp();
+    await loadPgn(user, CASTLING_960_PGN);
+
+    // The import box closed after the first game; the helper opens it again.
+    await loadPgn(user, PGN);
+
+    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(AFTER_E4_E5_NF3, 16, 3, false));
   });
 
   it('steps through the game with the buttons', async () => {

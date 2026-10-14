@@ -4,6 +4,7 @@ import {
   checkBackendHealth,
   getAiCommentary,
   listGeminiModels,
+  parsePgn,
   recognizeImage,
 } from './chessApi';
 
@@ -296,5 +297,28 @@ describe('errors that mean the server is not running', () => {
     fetchMock.mockResolvedValue(jsonResponse({ detail: 'Stockfish crashed' }, { status: 500 }));
 
     await expect(analyzeFen('f')).rejects.toThrow(/^Stockfish crashed$/);
+  });
+});
+
+describe('Chess960', () => {
+  it('asks for Chess960 analysis only when told to', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ lines: [] }));
+
+    await analyzeFen('f', 16, 3, true);
+    await analyzeFen('f', 16, 3);
+
+    expect(sentBody(0).chess960).toBe(true);
+    expect(sentBody(1)).not.toHaveProperty('chess960');
+  });
+
+  it('sends a PGN to the backend to be replayed', async () => {
+    const parsed = { success: true, moves: [], fens: ['f'], chess960: true, headers: {} };
+    fetchMock.mockResolvedValue(jsonResponse(parsed));
+
+    const result = await parsePgn('1. O-O *');
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/parse-pgn');
+    expect(sentBody()).toEqual({ pgn: '1. O-O *' });
+    expect(result).toEqual(parsed);
   });
 });
