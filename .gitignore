@@ -33,3 +33,6 @@ yarn-error.log*
 
 # Tests
 .pytest_cache/
+
+# The local board reader's calibration, made from the user's own screenshot
+backend/calibration/

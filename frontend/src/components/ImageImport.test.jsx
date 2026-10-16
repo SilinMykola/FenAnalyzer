@@ -570,3 +570,69 @@ describe('ImageImport turning a result upside down', () => {
     expect(screen.queryByText(/from Black's side/)).not.toBeInTheDocument();
   });
 });
+
+describe('ImageImport with the local reader', () => {
+  function renderLocal(localReader, recognition = IDLE) {
+    const reader = {
+      active: true,
+      needsCalibration: false,
+      calibrated: true,
+      onRecalibrate: vi.fn(),
+      onCancelCalibration: vi.fn(),
+      ...localReader,
+    };
+    const modelPicker = { value: 'local', models: [], defaultModel: null, onChange: vi.fn() };
+    render(
+      <ImageImport
+        recognition={recognition}
+        onImage={vi.fn()}
+        onEditInEditor={vi.fn()}
+        onClear={vi.fn()}
+        modelPicker={modelPicker}
+        localReader={reader}
+      />
+    );
+    return reader;
+  }
+
+  it('asks for the starting position while it needs calibrating', () => {
+    renderLocal({ needsCalibration: true, calibrated: false });
+
+    expect(screen.getByText(/Calibrate the local reader/)).toBeInTheDocument();
+    // Nothing to go back to before the first calibration.
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Recalibrate/ })).not.toBeInTheDocument();
+  });
+
+  it('lets a recalibration be cancelled', async () => {
+    const user = userEvent.setup();
+    const reader = renderLocal({ needsCalibration: true, calibrated: true });
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(reader.onCancelCalibration).toHaveBeenCalled();
+  });
+
+  it('offers Recalibrate once calibrated', async () => {
+    const user = userEvent.setup();
+    const reader = renderLocal();
+
+    expect(screen.queryByText(/Calibrate the local reader/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Recalibrate/ }));
+
+    expect(reader.onRecalibrate).toHaveBeenCalled();
+  });
+
+  it('says what it is doing while calibrating', () => {
+    renderLocal({ needsCalibration: true }, { status: 'recognizing', calibrating: true });
+
+    expect(screen.getByText(/Learning the board and pieces/)).toBeInTheDocument();
+  });
+
+  it('confirms a calibration', () => {
+    renderLocal({}, { status: 'calibrated', seenFromBlack: true });
+
+    expect(screen.getByText(/Calibrated\. The local reader now reads/)).toBeInTheDocument();
+    expect(screen.getByText(/seen from Black's side/)).toBeInTheDocument();
+  });
+});

@@ -18,6 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 from pydantic import BaseModel, Field
 
+from backend import local_reader
+
 # Load environment variables from backend/.env or system environment
 load_dotenv()
 
@@ -780,6 +782,9 @@ class RecognizeImageRequest(BaseModel):
     mime_type: str = Field(..., description="Image MIME type, e.g. image/png")
     custom_api_key: Optional[str] = None
     model: Optional[str] = GEMINI_MODEL_FIELD
+    # "local" reads the image on this machine against the calibrated board
+    # instead of asking Gemini.
+    reader: Literal["gemini", "local"] = "gemini"
 
 
 class RecognizeImageResponse(BaseModel):
@@ -912,10 +917,46 @@ def build_recognized_board(placement: str, turn: Optional[str]) -> tuple:
     return board, False
 
 
+def recognized_position(answer: dict, model_name: str, reader_name: str) -> RecognizeImageResponse:
+    """The response for a recognized answer, from Gemini or the local reader:
+    {"rows", "bottom_left", "turn"}."""
+    placement, seen_from_black = placement_from_answer(answer)
+    if not placement:
+        return RecognizeImageResponse(
+            success=False, model=model_name, error="No chess board was found in the image."
+        )
+
+    try:
+        board, turn_detected = build_recognized_board(placement, answer.get("turn"))
+    except ValueError:
+        problem = describe_placement_problem(placement)
+        return RecognizeImageResponse(
+            success=False,
+            model=model_name,
+            error=(
+                f"{reader_name} misread the board: {problem}. The picture is fine; "
+                "Try Again, preferably with a stronger model chosen above."
+            ),
+        )
+
+    return RecognizeImageResponse(
+        success=True,
+        fen=board.fen(),
+        turn_detected=turn_detected,
+        is_valid=board.is_valid(),
+        seen_from_black=seen_from_black,
+        model=model_name,
+    )
+
+
 @app.post("/api/recognize-image", response_model=RecognizeImageResponse)
 async def recognize_image(payload: RecognizeImageRequest):
-    """Reads a chess position from an image with Gemini and returns it as FEN."""
+    """Reads a chess position from an image with Gemini, or with the local
+    reader when asked, and returns it as FEN."""
     raw = decode_image(payload.image_base64, payload.mime_type)
+
+    if payload.reader == "local":
+        return await asyncio.to_thread(recognize_locally, raw)
 
     api_key = get_gemini_key(payload.custom_api_key)
     if not api_key:
@@ -969,33 +1010,72 @@ async def recognize_image(payload: RecognizeImageRequest):
         )
         return RecognizeImageResponse(success=False, model=model_name, error=error)
 
-    placement, seen_from_black = placement_from_answer(answer)
-    if not placement:
-        return RecognizeImageResponse(
-            success=False, model=model_name, error="No chess board was found in the image."
-        )
+    return recognized_position(answer, model_name, "Gemini")
 
+
+# ── Local reading against a calibrated board ───────────────────────────────────
+# One screenshot of the starting position teaches the local reader the board
+# and pieces of the site the screenshots come from; see backend/local_reader.py.
+
+LOCAL_READER = "local"
+DEFAULT_CALIBRATION_FILE = os.path.join(os.path.dirname(__file__), "calibration", "board.npz")
+LOCAL_NOT_CALIBRATED = (
+    "The local reader is not calibrated yet. "
+    "Upload a screenshot of the starting position to calibrate it."
+)
+
+
+def calibration_file() -> str:
+    return os.environ.get("LOCAL_READER_CALIBRATION", "").strip() or DEFAULT_CALIBRATION_FILE
+
+
+class LocalReaderStatus(BaseModel):
+    calibrated: bool
+
+
+class CalibrateRequest(BaseModel):
+    image_base64: str = Field(..., description="Image bytes as base64, with or without a data: URL prefix")
+    mime_type: str = Field(..., description="Image MIME type, e.g. image/png")
+
+
+class CalibrateResponse(BaseModel):
+    success: bool
+    # The starting position as read back from the screenshot
+    fen: Optional[str] = None
+    seen_from_black: bool = False
+    error: Optional[str] = None
+
+
+@app.get("/api/local-reader", response_model=LocalReaderStatus)
+def local_reader_status():
+    return LocalReaderStatus(calibrated=os.path.isfile(calibration_file()))
+
+
+@app.post("/api/local-reader/calibrate", response_model=CalibrateResponse)
+def calibrate_local_reader(payload: CalibrateRequest):
+    """Learns the board and pieces from a screenshot of the starting position,
+    replacing any earlier calibration only when this one succeeds."""
+    raw = decode_image(payload.image_base64, payload.mime_type)
     try:
-        board, turn_detected = build_recognized_board(placement, answer.get("turn"))
-    except ValueError:
-        problem = describe_placement_problem(placement)
-        return RecognizeImageResponse(
-            success=False,
-            model=model_name,
-            error=(
-                f"Gemini misread the board: {problem}. The picture is fine; "
-                "Try Again, preferably with a stronger model chosen above."
-            ),
-        )
+        calibration, seen_from_black = local_reader.calibrate(raw)
+    except local_reader.LocalReaderError as e:
+        return CalibrateResponse(success=False, error=str(e))
 
-    return RecognizeImageResponse(
-        success=True,
-        fen=board.fen(),
-        turn_detected=turn_detected,
-        is_valid=board.is_valid(),
-        seen_from_black=seen_from_black,
-        model=model_name,
-    )
+    path = calibration_file()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    local_reader.save(calibration, path)
+    return CalibrateResponse(success=True, fen=chess.STARTING_FEN, seen_from_black=seen_from_black)
+
+
+def recognize_locally(raw: bytes) -> RecognizeImageResponse:
+    calibration = local_reader.load(calibration_file())
+    if calibration is None:
+        return RecognizeImageResponse(success=False, model=LOCAL_READER, error=LOCAL_NOT_CALIBRATED)
+    try:
+        answer = local_reader.read_position(raw, calibration)
+    except local_reader.LocalReaderError as e:
+        return RecognizeImageResponse(success=False, model=LOCAL_READER, error=str(e))
+    return recognized_position(answer, LOCAL_READER, "The local reader")
 
 
 # ── PGN parsing for Chess960 ───────────────────────────────────────────────────

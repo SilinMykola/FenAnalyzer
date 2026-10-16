@@ -2112,7 +2112,26 @@ body {
 /* Model choice in the image box, on its own line */
 .image-model-row {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   margin-top: 8px;
+}
+
+/* Asks for the starting position while the local reader is being calibrated */
+.calibration-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--accent-color);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 /* "Why?" next to the score, and the Grandmaster's answer about the evaluation */

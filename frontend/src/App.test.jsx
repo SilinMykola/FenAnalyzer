@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import {
   analyzeFen,
+  calibrateLocalReader,
   checkBackendHealth,
   getAiCommentary,
+  getLocalReaderStatus,
   listGeminiModels,
   parsePgn,
   recognizeImage,
@@ -189,6 +191,7 @@ beforeEach(() => {
     models: ['gemini-2.5-flash-lite', 'gemini-3.8-flash'],
     default_model: 'gemini-3.8-flash',
   });
+  vi.mocked(getLocalReaderStatus).mockResolvedValue({ calibrated: false });
 });
 
 describe('App start-up', () => {
@@ -891,6 +894,143 @@ describe('App position from an image', () => {
     await user.click(screen.getByRole('button', { name: /Reset Board/ }));
 
     expect(screen.queryByText(/Position recognized/)).not.toBeInTheDocument();
+  });
+});
+
+describe('App local image reader', () => {
+  const RECOGNIZED = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 1';
+  const screenshot = () => new File(['png bytes'], 'board.png', { type: 'image/png' });
+  const imagePicker = () => screen.getByLabelText('Switch Gemini model for reading images');
+  const calibrationNote = () => screen.queryByText(/Calibrate the local reader/);
+
+  async function uploadScreenshot(user) {
+    await user.upload(screen.getByLabelText('Upload image file'), screenshot());
+  }
+
+  async function chooseLocal(user) {
+    await user.selectOptions(imagePicker(), 'local');
+  }
+
+  it('is offered in the image box only, not for the commentary', async () => {
+    await renderApp();
+
+    expect(within(imagePicker()).getByRole('option', { name: /Local/ })).toBeInTheDocument();
+    const headerPicker = screen.getByLabelText('Gemini model');
+    expect(within(headerPicker).queryByRole('option', { name: /Local/ })).not.toBeInTheDocument();
+  });
+
+  it('calibrates from the first image, then reads the next one locally', async () => {
+    const user = userEvent.setup();
+    vi.mocked(calibrateLocalReader).mockResolvedValue({ success: true, seen_from_black: false });
+    vi.mocked(recognizeImage).mockResolvedValue({
+      success: true,
+      fen: RECOGNIZED,
+      turn_detected: true,
+      is_valid: true,
+    });
+    await renderApp();
+    await chooseLocal(user);
+    expect(calibrationNote()).toBeInTheDocument();
+
+    await uploadScreenshot(user);
+
+    expect(await screen.findByText(/Calibrated\./)).toBeInTheDocument();
+    expect(calibrateLocalReader).toHaveBeenCalledWith({
+      image_base64: btoa('png bytes'),
+      mime_type: 'image/png',
+    });
+    expect(recognizeImage).not.toHaveBeenCalled();
+    expect(calibrationNote()).not.toBeInTheDocument();
+    expect(chessboardProps().position).toBe(START_FEN);
+
+    await uploadScreenshot(user);
+
+    await waitFor(() => expect(chessboardProps().position).toBe(RECOGNIZED));
+    expect(recognizeImage).toHaveBeenCalledWith({
+      image_base64: btoa('png bytes'),
+      mime_type: 'image/png',
+      reader: 'local',
+    });
+  });
+
+  it('reads at once when the backend is calibrated already', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getLocalReaderStatus).mockResolvedValue({ calibrated: true });
+    vi.mocked(recognizeImage).mockResolvedValue({ success: true, fen: RECOGNIZED, is_valid: true });
+    await renderApp();
+    await chooseLocal(user);
+
+    expect(calibrationNote()).not.toBeInTheDocument();
+    await uploadScreenshot(user);
+
+    await waitFor(() => expect(chessboardProps().position).toBe(RECOGNIZED));
+    expect(calibrateLocalReader).not.toHaveBeenCalled();
+  });
+
+  it('says why a calibration failed and waits for another screenshot', async () => {
+    const user = userEvent.setup();
+    vi.mocked(calibrateLocalReader).mockResolvedValue({
+      success: false,
+      error: 'This is not the starting position.',
+    });
+    await renderApp();
+    await chooseLocal(user);
+
+    await uploadScreenshot(user);
+
+    expect(await screen.findByText('⚠️ This is not the starting position.')).toBeInTheDocument();
+    expect(calibrationNote()).toBeInTheDocument();
+  });
+
+  it('calibrates again on Recalibrate, which can be cancelled', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getLocalReaderStatus).mockResolvedValue({ calibrated: true });
+    await renderApp();
+    await chooseLocal(user);
+
+    await user.click(screen.getByRole('button', { name: /Recalibrate/ }));
+    expect(calibrationNote()).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(calibrationNote()).not.toBeInTheDocument();
+  });
+
+  it('goes back to reading once recalibrated', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getLocalReaderStatus).mockResolvedValue({ calibrated: true });
+    vi.mocked(calibrateLocalReader).mockResolvedValue({ success: true });
+    await renderApp();
+    await chooseLocal(user);
+    await user.click(screen.getByRole('button', { name: /Recalibrate/ }));
+
+    await uploadScreenshot(user);
+
+    expect(await screen.findByText(/Calibrated\./)).toBeInTheDocument();
+    expect(calibrationNote()).not.toBeInTheDocument();
+  });
+
+  it('remembers choosing it', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    await chooseLocal(user);
+
+    expect(localStorage.getItem('image_reader')).toBe('local');
+  });
+
+  it('starts with the remembered choice, and gives it up for a Gemini model', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getLocalReaderStatus).mockResolvedValue({ calibrated: true });
+    localStorage.setItem('image_reader', 'local');
+    await renderApp();
+    expect(imagePicker()).toHaveValue('local');
+
+    await user.selectOptions(imagePicker(), 'gemini-2.5-flash-lite');
+
+    expect(imagePicker()).toHaveValue('gemini-2.5-flash-lite');
+    expect(screen.getByLabelText('Gemini model')).toHaveValue('gemini-2.5-flash-lite');
+    expect(localStorage.getItem('image_reader')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Recalibrate/ })).not.toBeInTheDocument();
   });
 });
 

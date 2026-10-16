@@ -10,13 +10,17 @@ const PASTE_HINT = 'press Ctrl+V / ⌘V to paste the image instead';
  * a file or dropped onto the box. It only collects the image and shows the
  * state of the recognition; App sends the image to the backend.
  *
- * recognition: { status: 'idle' | 'recognizing' | 'done' | 'error',
- *                error, fen, turnDetected, isValid, seenFromBlack }
+ * recognition: { status: 'idle' | 'recognizing' | 'done' | 'calibrated' | 'error',
+ *                error, fen, turnDetected, isValid, seenFromBlack, calibrating }
  * onRotate:    turns a result by 180 degrees, for a board read upside down
  * waitSeconds: how long Gemini asked to wait before the next request; Try
  *              Again stays locked until it runs out.
  * modelPicker: props for a ModelPicker always shown in the box: another model
  *              may read a picture better, and has its own quota.
+ * localReader: { active, needsCalibration, calibrated, onRecalibrate,
+ *              onCancelCalibration } when the local reader is chosen. While it
+ *              needs calibration, the next image is taken as the starting
+ *              position to learn the board and pieces from.
  */
 export default function ImageImport({
   onImage,
@@ -26,6 +30,7 @@ export default function ImageImport({
   onRotate,
   waitSeconds = 0,
   modelPicker,
+  localReader,
 }) {
   // Object URL of the last image, shown as a thumbnail next to the result.
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -140,6 +145,7 @@ export default function ImageImport({
   );
   const seenFromBlackNote = ' The picture shows the board from Black\'s side; it was turned to White\'s.';
   const hasSomethingToClear = Boolean(previewUrl || localError || recognition.status !== 'idle');
+  const calibrating = Boolean(localReader?.active && localReader.needsCalibration);
 
   return (
     <div className="card image-import-card">
@@ -160,6 +166,27 @@ export default function ImageImport({
         )}
 
         <div className="image-drop-body">
+          {calibrating && (
+            <div className="calibration-note">
+              <span>
+                🎯 <strong>Calibrate the local reader:</strong> paste or upload a screenshot of the{' '}
+                <strong>starting position</strong>, taken on the site your screenshots come from.
+                Either side may be at the bottom. From it the reader learns that site&apos;s board
+                and pieces.
+              </span>
+              {localReader.calibrated && (
+                <button
+                  type="button"
+                  className="preset-btn"
+                  onClick={localReader.onCancelCalibration}
+                  disabled={recognizing}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          )}
+
           <p className="image-drop-text">
             Paste a screenshot of a board with <kbd>Ctrl</kbd>+<kbd>V</kbd> / <kbd>⌘</kbd>+
             <kbd>V</kbd>, drop an image here, or:
@@ -212,13 +239,37 @@ export default function ImageImport({
                 ariaLabel="Switch Gemini model for reading images"
                 className="model-picker-inline"
               />
+              {localReader?.active && !calibrating && (
+                <button
+                  type="button"
+                  className="preset-btn"
+                  onClick={localReader.onRecalibrate}
+                  disabled={recognizing}
+                  title="Teach the local reader another board style from a screenshot of the starting position"
+                >
+                  🎯 Recalibrate
+                </button>
+              )}
             </div>
           )}
 
           {recognizing && (
             <p className="image-status">
-              <span className="spinner"></span> Reading the position from the image...
+              <span className="spinner"></span>{' '}
+              {recognition.calibrating
+                ? 'Learning the board and pieces from the starting position...'
+                : 'Reading the position from the image...'}
             </p>
+          )}
+
+          {!localError && recognition.status === 'calibrated' && (
+            <div className="image-result">
+              <span>
+                ✅ Calibrated. The local reader now reads screenshots of this board style: paste
+                one of any position.
+                {recognition.seenFromBlack && ' (The starting position was seen from Black\'s side.)'}
+              </span>
+            </div>
           )}
 
           {error && <div className="image-error">⚠️ {error}</div>}

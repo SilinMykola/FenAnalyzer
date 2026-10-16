@@ -6,6 +6,8 @@ import {
   listGeminiModels,
   parsePgn,
   recognizeImage,
+  getLocalReaderStatus,
+  calibrateLocalReader,
 } from './chessApi';
 
 // A stand-in for the browser's fetch: every test decides what the "server"
@@ -213,6 +215,16 @@ describe('recognizeImage', () => {
     expect(sentBody(1)).not.toHaveProperty('model');
   });
 
+  it('asks for the local reader only when chosen', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }));
+
+    await recognizeImage({ ...request, reader: 'local' });
+    await recognizeImage(request);
+
+    expect(sentBody(0).reader).toBe('local');
+    expect(sentBody(1)).not.toHaveProperty('reader');
+  });
+
   it("throws the server's error detail", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ detail: 'Image is larger than 10 MB.' }, { status: 413 })
@@ -225,6 +237,32 @@ describe('recognizeImage', () => {
     fetchMock.mockResolvedValue(brokenResponse(502));
 
     await expect(recognizeImage(request)).rejects.toThrow('Server error: 502');
+  });
+});
+
+describe('local reader', () => {
+  it('asks whether it is calibrated', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ calibrated: true }));
+
+    expect(await getLocalReaderStatus()).toEqual({ calibrated: true });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/local-reader');
+  });
+
+  it('throws when the backend does not answer', async () => {
+    fetchMock.mockResolvedValue(brokenResponse(502));
+
+    await expect(getLocalReaderStatus()).rejects.toThrow('Server error: 502');
+  });
+
+  it('posts the calibration screenshot', async () => {
+    const answer = { success: true, seen_from_black: false };
+    fetchMock.mockResolvedValue(jsonResponse(answer));
+
+    const result = await calibrateLocalReader({ image_base64: 'aGVsbG8=', mime_type: 'image/png' });
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/local-reader/calibrate');
+    expect(sentBody()).toEqual({ image_base64: 'aGVsbG8=', mime_type: 'image/png' });
+    expect(result).toEqual(answer);
   });
 });
 

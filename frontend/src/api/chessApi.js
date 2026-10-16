@@ -94,17 +94,34 @@ export async function getAiCommentary({
 }
 
 /**
- * Reads a chess position from an image (sent as base64) using Gemini.
+ * Reads a chess position from an image (sent as base64) using Gemini, or
+ * with reader 'local' on the backend against the calibrated board.
  * Resolves to { success, fen, turn_detected, is_valid, model, error,
  * retry_after_seconds }.
  */
-export async function recognizeImage({ image_base64, mime_type, custom_api_key, model }) {
+export async function recognizeImage({ image_base64, mime_type, custom_api_key, model, reader }) {
   return postJson('/api/recognize-image', {
     image_base64,
     mime_type,
     custom_api_key: custom_api_key || undefined,
     model: model || undefined,
+    reader: reader || undefined,
   });
+}
+
+/** Whether the local reader has been calibrated. Resolves to { calibrated }. */
+export async function getLocalReaderStatus() {
+  const response = await fetch('/api/local-reader');
+  if (!response.ok) throw new Error(`Server error: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Teaches the local reader the board and pieces from a screenshot of the
+ * starting position. Resolves to { success, fen, seen_from_black, error }.
+ */
+export async function calibrateLocalReader({ image_base64, mime_type }) {
+  return postJson('/api/local-reader/calibrate', { image_base64, mime_type });
 }
 
 /**

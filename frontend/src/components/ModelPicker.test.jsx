@@ -51,6 +51,24 @@ describe('ModelPicker', () => {
     expect(onChange.mock.calls).toEqual([['gemini-2.5-flash-lite'], ['']]);
   });
 
+  it('lists extra readers first and reports them like a model', async () => {
+    const user = userEvent.setup();
+    const extraOptions = [{ value: 'local', label: 'Local (calibrated board)' }];
+    const { select, onChange } = renderPicker({ value: 'local', extraOptions });
+
+    expect(optionTexts(select)).toEqual([
+      'Local (calibrated board)',
+      'Default (gemini-3.8-flash)',
+      'gemini-2.5-flash-lite',
+      'gemini-3.8-flash',
+    ]);
+    expect(select).toHaveValue('local');
+
+    await user.selectOptions(select, 'gemini-3.8-flash');
+
+    expect(onChange).toHaveBeenCalledWith('gemini-3.8-flash');
+  });
+
   it('can go without its label and carry its own accessible name', () => {
     renderPicker({ label: '', ariaLabel: 'Switch Gemini model for reading images' });
 

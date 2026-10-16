@@ -85,6 +85,13 @@ def no_real_secrets(monkeypatch):
     monkeypatch.delenv("GEMINI_MODEL", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def no_real_calibration(monkeypatch, tmp_path):
+    # Keep the user's own board calibration out of the tests, and the tests'
+    # out of it.
+    monkeypatch.setenv("LOCAL_READER_CALIBRATION", str(tmp_path / "calibration" / "board.npz"))
+
+
 @pytest.fixture
 def gemini(monkeypatch):
     """Answers Gemini requests with the responses a test queues up.

@@ -65,6 +65,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **The model choice is remembered** in the browser and stays after a successful read and a page reload; the header, the image box and the Grandmaster block all show and change the same choice
 - **Clear Image** removes the pasted picture together with its error or result; the board stays as it is
 - PNG, JPEG or WebP up to 10 MB; needs a Gemini API key (the same one as the commentary)
+- **📍 Local reader — no Gemini, no quota, no internet.** Choose **📍 Local (calibrated board)** in the image box's model list. The first time, paste a screenshot of the **starting position** from the site your screenshots come from (either side at the bottom): the reader cuts the 12 pieces and the two square colours out of it and checks that they read back as the starting position. From then on every screenshot in that style is read on your own computer in under a second, with the same answer every time. Square by square, the piece is told apart from the square by colour and compared with the calibrated pieces, so the highlighted last move does not get in the way — it tells whose move it is: the side that did not just move. The rank numbers beside the board tell whether it is seen from Black's side; without them the pawns do. A square that matches no piece clearly is named in the error (*"Could not tell which piece stands on d5"*) instead of being guessed. **🎯 Recalibrate** takes a new starting position, e.g. after changing the board theme on the site; a failed calibration keeps the old one. The calibration is kept in `backend/calibration/` (not in git)
 
 ### 🧩 Board Editor
 - Dedicated **Board Editor tab** for building any custom chess position from scratch
@@ -110,6 +111,8 @@ interactively, build custom positions, and get natural language grandmaster coac
                          │  POST /api/analyze
                          │  POST /api/ai-commentary
                          │  POST /api/recognize-image
+                         │  GET  /api/local-reader
+                         │  POST /api/local-reader/calibrate
                          │  POST /api/gemini-models
                          │  POST /api/parse-pgn
                          │  GET  /api/health
@@ -333,6 +336,18 @@ Reads a chess position from an image via Google Gemini and returns it as FEN.
 `is_valid: false` means the position is illegal (e.g. a missing king) and Stockfish would reject it.
 When nothing could be read, `success` is `false` and `error` says why.
 
+With `"reader": "local"` the image is read on this machine against the calibrated board instead
+of by Gemini; `model` is then `"local"`, and the key and model fields are not needed.
+
+### `GET /api/local-reader`
+`{ "calibrated": true }` once the local reader has been calibrated.
+
+### `POST /api/local-reader/calibrate`
+Teaches the local reader a board style from a screenshot of the starting position.
+The request is `{ "image_base64", "mime_type" }` as for `/api/recognize-image`.
+The response is `{ "success", "fen", "seen_from_black", "error" }`; on failure the earlier
+calibration is kept and `error` says what is wrong with the screenshot.
+
 ### `POST /api/gemini-models`
 Lists the Gemini models the API key can use, for the model picker. Listing does not count
 against the generation quota.
@@ -381,6 +396,7 @@ Returns engine availability and API key configuration status.
 FenAnalyzer/
 ├── backend/
 │   ├── main.py               # FastAPI · Stockfish UCI · Gemini AI · Pydantic models
+│   ├── local_reader.py       # Reads screenshots locally against a calibrated board
 │   ├── requirements.txt      # Python dependencies
 │   ├── requirements-dev.txt  # Test dependencies (pytest)
 │   └── .env.example          # Environment variable template
@@ -410,6 +426,7 @@ FenAnalyzer/
 │       ├── index.css               # Theme tokens (dark & light) & component styles
 │       └── main.jsx                # React DOM entry point
 ├── tests/                          # Backend tests (pytest)
+│   └── fixtures/                   # Board screenshots for the local reader tests
 ├── start.sh                        # One-command launcher (backend + frontend)
 ├── package.json                    # Root npm scripts
 └── README.md

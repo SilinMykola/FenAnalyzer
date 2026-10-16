@@ -10,8 +10,10 @@ import ModelPicker from './components/ModelPicker';
 import MoveLine from './components/MoveLine';
 import {
   analyzeFen,
+  calibrateLocalReader,
   checkBackendHealth,
   getAiCommentary,
+  getLocalReaderStatus,
   listGeminiModels,
   parsePgn,
   recognizeImage,
@@ -28,6 +30,11 @@ const DEFAULT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 // The colour whose turn it is in a FEN, as react-chessboard names orientations.
 const sideToMove = (fen) => (fen.split(' ')[1] === 'b' ? 'black' : 'white');
+
+// The image box's model picker also offers the local reader, which reads
+// screenshots on this machine against a board calibrated by the user.
+const LOCAL_READER = 'local';
+const LOCAL_READER_OPTIONS = [{ value: LOCAL_READER, label: '📍 Local (calibrated board)' }];
 
 export default function App() {
   // Mode: 'fen' or 'pgn'
@@ -107,6 +114,30 @@ export default function App() {
   // Reading a position from an image: { status, error, fen, turnDetected, isValid }
   const [imageRecognition, setImageRecognition] = useState({ status: 'idle' });
 
+  // Who reads images: Gemini, or the local reader. The local reader first
+  // needs a screenshot of the starting position to learn the board from.
+  const [readsLocally, setReadsLocally] = useState(
+    () => localStorage.getItem('image_reader') === LOCAL_READER
+  );
+  // Whether the local reader is calibrated; null until the backend says.
+  const [localCalibrated, setLocalCalibrated] = useState(null);
+  // The user asked to calibrate again, from a new screenshot.
+  const [recalibrating, setRecalibrating] = useState(false);
+  const needsCalibration = readsLocally && (recalibrating || localCalibrated === false);
+
+  const refreshLocalReaderStatus = useCallback(async () => {
+    try {
+      const res = await getLocalReaderStatus();
+      setLocalCalibrated(Boolean(res?.calibrated));
+    } catch {
+      // Unknown while the backend is down; reading will say what is wrong.
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshLocalReaderStatus();
+  }, [refreshLocalReaderStatus]);
+
   // Fetch the models the key can use; a new key may open up other models.
   useEffect(() => {
     let cancelled = false;
@@ -152,6 +183,29 @@ export default function App() {
     models: geminiModels.models,
     defaultModel: geminiModels.defaultModel,
     onChange: handleSelectGeminiModel,
+  };
+
+  // Choosing a Gemini model in the image box also makes Gemini read images.
+  const handleSelectImageReader = useCallback(
+    (value) => {
+      const local = value === LOCAL_READER;
+      setReadsLocally(local);
+      if (local) {
+        localStorage.setItem('image_reader', LOCAL_READER);
+        return;
+      }
+      localStorage.removeItem('image_reader');
+      setRecalibrating(false);
+      handleSelectGeminiModel(value);
+    },
+    [handleSelectGeminiModel]
+  );
+
+  const imageModelPicker = {
+    ...geminiModelPicker,
+    value: readsLocally ? LOCAL_READER : geminiModel,
+    onChange: handleSelectImageReader,
+    extraOptions: LOCAL_READER_OPTIONS,
   };
 
   // Check backend health on initial load
@@ -540,18 +594,55 @@ export default function App() {
     });
   };
 
-  // Reads the position in an image with Gemini and shows it.
+  // Teaches the local reader the board and pieces from a screenshot of the
+  // starting position.
+  const calibrateFrom = async (file) => {
+    setImageRecognition({ status: 'recognizing', calibrating: true });
+    try {
+      const image_base64 = await readImageAsBase64(file);
+      const res = await calibrateLocalReader({ image_base64, mime_type: file.type });
+      if (!res.success) {
+        setImageRecognition({
+          status: 'error',
+          error: res.error || 'Could not calibrate from this image',
+        });
+        return;
+      }
+      setLocalCalibrated(true);
+      setRecalibrating(false);
+      setImageRecognition({ status: 'calibrated', seenFromBlack: Boolean(res.seen_from_black) });
+    } catch (err) {
+      setImageRecognition({
+        status: 'error',
+        error: err.message || 'Could not calibrate from this image',
+      });
+    }
+  };
+
+  // Reads the position in an image with Gemini or the local reader and
+  // shows it; while the local reader needs calibrating, calibrates it.
   const handleImageSelected = async (file) => {
+    if (needsCalibration) {
+      calibrateFrom(file);
+      return;
+    }
     setImageRecognition({ status: 'recognizing' });
     try {
       const image_base64 = await readImageAsBase64(file);
-      const res = await recognizeImage({
-        image_base64,
-        mime_type: file.type,
-        custom_api_key: customApiKey,
-        model: geminiModel,
-      });
-      pauseGeminiAfter(res);
+      const res = readsLocally
+        ? await recognizeImage({ image_base64, mime_type: file.type, reader: LOCAL_READER })
+        : await recognizeImage({
+            image_base64,
+            mime_type: file.type,
+            custom_api_key: customApiKey,
+            model: geminiModel,
+          });
+      if (readsLocally) {
+        // The calibration may have gone missing on the backend.
+        if (!res.success) refreshLocalReaderStatus();
+      } else {
+        pauseGeminiAfter(res);
+      }
       if (!res.success) {
         setImageRecognition({
           status: 'error',
@@ -737,8 +828,22 @@ export default function App() {
                     onEditInEditor={() => setActiveTab('editor')}
                     onClear={() => setImageRecognition({ status: 'idle' })}
                     onRotate={handleRotateRecognized}
-                    waitSeconds={geminiWait}
-                    modelPicker={geminiModelPicker}
+                    waitSeconds={readsLocally ? 0 : geminiWait}
+                    modelPicker={imageModelPicker}
+                    localReader={
+                      readsLocally
+                        ? {
+                            active: true,
+                            needsCalibration,
+                            calibrated: Boolean(localCalibrated),
+                            onRecalibrate: () => {
+                              setRecalibrating(true);
+                              setImageRecognition({ status: 'idle' });
+                            },
+                            onCancelCalibration: () => setRecalibrating(false),
+                          }
+                        : undefined
+                    }
                   />
                 </>
               ) : (
