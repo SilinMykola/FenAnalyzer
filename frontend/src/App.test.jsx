@@ -256,6 +256,35 @@ describe('App playing moves', () => {
     expect(analyzeFen).toHaveBeenCalledTimes(callsBefore);
   });
 
+  it('promotes a pawn to the piece chosen in the promotion dialog', async () => {
+    await renderApp();
+    fireEvent.change(screen.getByLabelText('FEN Position'), {
+      target: { value: '8/4P3/8/8/8/8/k7/4K3 w - - 0 1' },
+    });
+
+    let accepted;
+    act(() => {
+      // The board's dialog reports the chosen piece in place of the pawn.
+      accepted = chessboardProps().onPieceDrop('e7', 'e8', 'wN');
+    });
+
+    expect(accepted).toBe(true);
+    expect(chessboardProps().position).toBe('4N3/8/8/8/8/8/k7/4K3 b - - 0 1');
+  });
+
+  it('promotes a Black pawn to the chosen piece too', async () => {
+    await renderApp();
+    fireEvent.change(screen.getByLabelText('FEN Position'), {
+      target: { value: '4k3/8/8/8/8/8/p7/4K3 b - - 0 1' },
+    });
+
+    act(() => {
+      chessboardProps().onPieceDrop('a2', 'a1', 'bR');
+    });
+
+    expect(chessboardProps().position).toBe('4k3/8/8/8/8/8/8/r3K3 w - - 0 2');
+  });
+
   it("plays the engine's best move", async () => {
     const user = userEvent.setup();
     await renderApp();

@@ -355,14 +355,16 @@ export default function App() {
     triggerAnalysis(DEFAULT_FEN);
   };
 
-  // Handler for making a move via Drag & Drop on the board
-  const handlePieceDrop = (sourceSquare, targetSquare) => {
+  // Handler for making a move via Drag & Drop on the board. For a promotion
+  // the board asks which piece to take and passes it as `piece` ("wN").
+  const handlePieceDrop = (sourceSquare, targetSquare, piece) => {
     setVariationPreview(null);
+    const chosen = piece?.[1]?.toLowerCase();
     try {
       const move = gameRef.current.move({
         from: sourceSquare,
         to: targetSquare,
-        promotion: 'q', // Default auto-queen for convenience
+        promotion: 'qrbn'.includes(chosen) ? chosen : 'q',
       });
 
       if (move === null) return false;
