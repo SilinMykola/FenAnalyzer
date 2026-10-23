@@ -75,7 +75,7 @@ export default function App() {
   const [orientation, setOrientation] = useState('white');
 
   // Engine controls
-  const [depth, setDepth] = useState(16);
+  const [depth, setDepth] = useState(20);
   const [multipv, setMultipv] = useState(3);
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -249,10 +249,13 @@ export default function App() {
     [depth, multipv]
   );
 
-  // Analyze starting position on mount
+  // Analyze the starting position once, on mount. Not on every new
+  // triggerAnalysis: it changes with the depth and lines, and analyzing the
+  // starting position then would replace the analysis of the board.
   useEffect(() => {
     triggerAnalysis(DEFAULT_FEN);
-  }, [triggerAnalysis]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Variation Preview state (for clicking moves in Stockfish engine lines)
   const [variationPreview, setVariationPreview] = useState(null);
@@ -826,10 +829,12 @@ export default function App() {
                     fen={fenInput}
                     onFenChange={handleFenChange}
                     depth={depth}
-                    onDepthChange={setDepth}
                     multipv={multipv}
-                    onMultipvChange={setMultipv}
-                    onAnalyze={() => triggerAnalysis(fen)}
+                    onAnalyze={(newDepth, newMultipv) => {
+                      setDepth(newDepth);
+                      setMultipv(newMultipv);
+                      triggerAnalysis(fen, newDepth, newMultipv);
+                    }}
                     loading={loading}
                   />
                   <ImageImport

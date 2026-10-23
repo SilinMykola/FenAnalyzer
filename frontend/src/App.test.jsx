@@ -195,10 +195,10 @@ beforeEach(() => {
 });
 
 describe('App start-up', () => {
-  it('analyzes the starting position with depth 16 and 3 lines', async () => {
+  it('analyzes the starting position with depth 20 and 3 lines', async () => {
     await renderApp();
 
-    expect(analyzeFen).toHaveBeenCalledWith(START_FEN, 16, 3, false);
+    expect(analyzeFen).toHaveBeenCalledWith(START_FEN, 20, 3, false);
     expect(chessboardProps().position).toBe(START_FEN);
   });
 
@@ -367,29 +367,44 @@ describe('App FEN tab', () => {
     expect(screen.getByLabelText('FEN Position')).toHaveValue(AFTER_E4);
   });
 
-  it('analyzes with the depth chosen on the slider', async () => {
+  it('does not analyze while a slider is moved', async () => {
     await renderApp();
+    const callsBefore = analyzeFen.mock.calls.length;
 
-    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '24' } });
+    fireEvent.change(screen.getByLabelText(/Lines:/), { target: { value: '5' } });
 
-    await waitFor(() => expect(analyzeFen.mock.calls.at(-1)[1]).toBe(20));
+    expect(screen.getByLabelText(/Depth:/)).toHaveValue('24');
+    expect(analyzeFen).toHaveBeenCalledTimes(callsBefore);
   });
 
-  // Known bug: triggerAnalysis is recreated when depth changes, and the
-  // mount-time effect that depends on it re-runs with the hard-coded starting
-  // FEN. So moving a slider analyzes the starting position, not the board.
-  // it.fails passes while the bug exists; once it is fixed, swap it for it.
-  it.fails('keeps analyzing the current position when the depth changes', async () => {
+  it('analyzes the position on the board with the depth and lines applied', async () => {
+    const user = userEvent.setup();
     await renderApp();
     act(() => {
       chessboardProps().onPieceDrop('e2', 'e4', 'wP');
     });
     await waitFor(() => expect(lastAnalyzedFen()).toBe(AFTER_E4));
 
-    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '24' } });
+    fireEvent.change(screen.getByLabelText(/Lines:/), { target: { value: '5' } });
+    await user.click(screen.getByRole('button', { name: /Apply/ }));
 
-    await waitFor(() => expect(analyzeFen.mock.calls.at(-1)[1]).toBe(20));
-    expect(lastAnalyzedFen()).toBe(AFTER_E4);
+    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(AFTER_E4, 24, 5, false));
+    expect(screen.queryByRole('button', { name: /Apply/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps the applied depth for the moves played next', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '12' } });
+    await user.click(screen.getByRole('button', { name: /Apply/ }));
+
+    act(() => {
+      chessboardProps().onPieceDrop('e2', 'e4', 'wP');
+    });
+
+    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(AFTER_E4, 12, 3, false));
   });
 });
 
@@ -437,7 +452,7 @@ describe('App PGN tab', () => {
     const finalFen = CASTLING_960_PARSED.fens.at(-1);
     expect(chessboardProps().position).toBe(finalFen);
     // Analyzed as Chess960, so Stockfish plays Chess960 castling.
-    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(finalFen, 16, 3, true));
+    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(finalFen, 20, 3, true));
   });
 
   it('steps back before castling and keeps the rights written as rook files', async () => {
@@ -452,7 +467,7 @@ describe('App PGN tab', () => {
     const beforeCastling = CASTLING_960_PARSED.fens[8];
     expect(beforeCastling.split(' ')[2]).toBe('Aa');
     expect(chessboardProps().position).toBe(beforeCastling);
-    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(beforeCastling, 16, 3, true));
+    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(beforeCastling, 20, 3, true));
   });
 
   it("shows the backend's reason when a Chess960 game cannot be read", async () => {
@@ -477,7 +492,7 @@ describe('App PGN tab', () => {
     // The import box closed after the first game; the helper opens it again.
     await loadPgn(user, PGN);
 
-    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(AFTER_E4_E5_NF3, 16, 3, false));
+    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(AFTER_E4_E5_NF3, 20, 3, false));
   });
 
   it('steps through the game with the buttons', async () => {

@@ -127,7 +127,7 @@ class TestAnalyzeWithEngine:
 
         analyze()
 
-        assert engine.calls[0]["depth"] == 16
+        assert engine.calls[0]["depth"] == 20
         assert engine.calls[0]["multipv"] == 3
 
     def test_builds_one_entry_per_engine_line(self, fake_engine):

@@ -6,14 +6,13 @@ import FenInput from './FenInput';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
-// FenInput is a "controlled" component: it shows the props it is given and
-// reports changes through callbacks, but never changes its own value. So the
-// tests render it with fake callbacks (vi.fn) and check what they were called with.
+// FenInput shows the FEN and the applied depth and lines it is given and
+// reports through callbacks; only the sliders keep a value of their own until
+// it is applied. The tests render it with fake callbacks (vi.fn) and check
+// what they were called with.
 function renderFenInput(props = {}) {
   const callbacks = {
     onFenChange: vi.fn(),
-    onDepthChange: vi.fn(),
-    onMultipvChange: vi.fn(),
     onAnalyze: vi.fn(),
   };
   render(
@@ -101,24 +100,46 @@ describe('FenInput', () => {
     expect(warn).toHaveBeenCalled();
   });
 
-  it('reports slider changes as numbers', () => {
-    const { onDepthChange, onMultipvChange } = renderFenInput();
+  it('offers Apply only once a slider is moved, without analyzing yet', () => {
+    const { onAnalyze } = renderFenInput();
+    expect(screen.queryByRole('button', { name: /Apply/ })).not.toBeInTheDocument();
 
     // user-event cannot drag a range slider; fireEvent sets the value directly.
     fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '20' } });
-    fireEvent.change(screen.getByLabelText(/Lines:/), { target: { value: '5' } });
 
-    expect(onDepthChange).toHaveBeenCalledWith(20);
-    expect(onMultipvChange).toHaveBeenCalledWith(5);
+    expect(screen.getByLabelText(/Depth:/)).toHaveValue('20');
+    expect(screen.getByRole('button', { name: /Apply/ })).toBeInTheDocument();
+    expect(onAnalyze).not.toHaveBeenCalled();
   });
 
-  it('starts the analysis from the submit button', async () => {
+  it('hides Apply when the sliders are moved back', () => {
+    renderFenInput();
+
+    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '16' } });
+
+    expect(screen.queryByRole('button', { name: /Apply/ })).not.toBeInTheDocument();
+  });
+
+  it('analyzes with the slider values on Apply', async () => {
     const user = userEvent.setup();
     const { onAnalyze } = renderFenInput();
+    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '20' } });
+    fireEvent.change(screen.getByLabelText(/Lines:/), { target: { value: '5' } });
+
+    await user.click(screen.getByRole('button', { name: /Apply/ }));
+
+    expect(onAnalyze).toHaveBeenCalledWith(20, 5);
+  });
+
+  it('starts the analysis from the submit button, with the slider values', async () => {
+    const user = userEvent.setup();
+    const { onAnalyze } = renderFenInput();
+    fireEvent.change(screen.getByLabelText(/Lines:/), { target: { value: '1' } });
 
     await user.click(screen.getByRole('button', { name: /Analyze with Stockfish/ }));
 
-    expect(onAnalyze).toHaveBeenCalledTimes(1);
+    expect(onAnalyze).toHaveBeenCalledWith(16, 1);
   });
 
   it('starts the analysis on Enter in the FEN box', async () => {
@@ -127,7 +148,7 @@ describe('FenInput', () => {
 
     await user.type(screen.getByLabelText('FEN Position'), '{Enter}');
 
-    expect(onAnalyze).toHaveBeenCalledTimes(1);
+    expect(onAnalyze).toHaveBeenCalledWith(16, 3);
   });
 
   it('cannot analyze an empty FEN', () => {

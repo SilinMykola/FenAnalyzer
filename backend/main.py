@@ -80,7 +80,7 @@ class AnalyzeRequest(BaseModel):
         description="FEN string representing the chess position",
         example="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
     )
-    depth: int = Field(default=16, ge=1, le=30, description="Search depth for Stockfish")
+    depth: int = Field(default=20, ge=1, le=30, description="Search depth for Stockfish")
     multipv: int = Field(default=3, ge=1, le=5, description="Number of top lines to evaluate")
     chess960: bool = Field(
         default=False,

@@ -6,7 +6,7 @@ import chess
 import chess.engine
 
 
-def analyze_fen(fen, engine_path, depth=16, multipv=3):
+def analyze_fen(fen, engine_path, depth=20, multipv=3):
     board = chess.Board(fen)
     if not board.is_valid():
         raise ValueError("Invalid FEN or impossible position")
@@ -39,7 +39,7 @@ def main():
     p = argparse.ArgumentParser(description="Analyze a chess position from FEN using Stockfish")
     p.add_argument("fen", help="FEN string")
     p.add_argument("--engine", default="stockfish", help="Path to Stockfish binary or command in PATH")
-    p.add_argument("--depth", type=int, default=16, help="Analysis depth")
+    p.add_argument("--depth", type=int, default=20, help="Analysis depth")
     p.add_argument("--multipv", type=int, default=3, help="Number of top lines")
     args = p.parse_args()
 

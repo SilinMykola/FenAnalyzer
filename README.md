@@ -21,7 +21,9 @@ interactively, build custom positions, and get natural language grandmaster coac
 ## 🌟 Features
 
 ### 🔍 Analysis Engine
-- **Instant Stockfish Evaluation** — every move triggers server-side UCI engine analysis with configurable depth (1–30) and MultiPV lines (1–5)
+- **Instant Stockfish Evaluation** — every move triggers server-side UCI engine analysis with configurable depth (1–30, 20 by default) and MultiPV lines (1–5)
+- **Depth and lines are applied, not streamed** — moving the Depth or Lines slider sends nothing to Stockfish; a **✓ Apply** button appears next to the sliders and analyzes the position on the board with the new values, which then stay for the moves played next. **Analyze with Stockfish** also uses what the sliders show
+- **Depth 20 by default** — at depth 16 Stockfish still falls for some tactics: in `r7/pp4kp/2p2qp1/4n3/N5Q1/7P/PPP3P1/3R2K1 w - - 3 25` it ranked Qd7+ first at +0.34, though Nxd7 simply wins the queen (−8.94). From depth 18 on it plays Qd4. Depth 20 takes a few seconds per position; lower it with the slider for faster answers
 - **Clickable Engine Variations** — each move in the top engine lines is an interactive badge; click any move to preview that position on the board instantly, then return to the original with one click
 - **WDL Probability Bar** — visual Win / Draw / Loss percentage breakdown from the Stockfish internal model
 - **Material Balance Counter** — real-time piece count with point differentials (e.g. `+2 White`)
@@ -89,7 +91,8 @@ interactively, build custom positions, and get natural language grandmaster coac
 ### 🎮 Interactive Board (FEN Mode)
 - **Drag-and-drop** piece movement with client-side legal move validation (`chess.js`)
 - **Audio feedback** — synthesized move and capture sounds via Web Audio API (no external files)
-- **Best-move arrow** — visual arrow overlay highlighting the engine's top recommendation
+- **Pawn promotion** — a pawn reaching the last rank opens a dialog to choose a queen, rook, bishop or knight, and the chosen piece is played
+- **Best-move arrow** — visual arrow overlay highlighting the engine's top recommendation. The arrow and the engine lines always belong to the position on the board: when you move on before an analysis is done, its late answer is dropped instead of replacing the newer one
 - **Side to move at the bottom** — loading a position from a FEN, a PGN, an image or the Board Editor turns the board so the side to move plays from below; moves played afterwards and stepping through a game leave it as it is, and **Reset Board** puts White back at the bottom
 - **Board flip** — toggle perspective between White and Black at any time
 - **FEN paste / clear** — load any position directly from a FEN string
@@ -234,7 +237,7 @@ Analyzes a chess position with Stockfish.
 ```json
 {
   "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
-  "depth": 16,
+  "depth": 20,
   "multipv": 3,
   "chess960": false
 }
@@ -253,7 +256,7 @@ whose castling field names rook files (`DAda`) is read as Chess960 without it.
   "verbal_verdict": "Even position (balanced game)",
   "material": { "white": 39, "black": 39, "diff": 0 },
   "wdl": { "win_pct": 7.5, "draw_pct": 92.1, "loss_pct": 0.4 },
-  "stats": { "depth": 16, "nodes": 45812, "nps": 650000, "time_seconds": 0.071 },
+  "stats": { "depth": 20, "nodes": 45812, "nps": 650000, "time_seconds": 0.071 },
   "lines": [
     {
       "rank": 1,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 const PRESETS = [
   {
@@ -19,16 +19,18 @@ const PRESETS = [
   },
 ];
 
-export default function FenInput({
-  fen,
-  onFenChange,
-  depth,
-  onDepthChange,
-  multipv,
-  onMultipvChange,
-  onAnalyze,
-  loading,
-}) {
+/**
+ * depth and multipv are the applied values. The sliders change only their own
+ * copy, so moving them sends nothing to Stockfish; Apply, or Analyze, calls
+ * onAnalyze(depth, multipv) with what they show.
+ */
+export default function FenInput({ fen, onFenChange, depth, multipv, onAnalyze, loading }) {
+  const [draftDepth, setDraftDepth] = useState(depth);
+  const [draftMultipv, setDraftMultipv] = useState(multipv);
+  useEffect(() => setDraftDepth(depth), [depth]);
+  useEffect(() => setDraftMultipv(multipv), [multipv]);
+  const settingsChanged = draftDepth !== depth || draftMultipv !== multipv;
+
   const handlePasteClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -43,7 +45,7 @@ export default function FenInput({
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!fen.trim() || loading) return;
-    onAnalyze();
+    onAnalyze(draftDepth, draftMultipv);
   };
 
   return (
@@ -119,7 +121,7 @@ export default function FenInput({
         <div className="controls-row">
           <div className="control-item">
             <label htmlFor="depth-select" className="control-label">
-              Depth: <strong>{depth}</strong>
+              Depth: <strong>{draftDepth}</strong>
             </label>
             <input
               id="depth-select"
@@ -127,15 +129,15 @@ export default function FenInput({
               min="8"
               max="24"
               step="1"
-              value={depth}
-              onChange={(e) => onDepthChange(Number(e.target.value))}
+              value={draftDepth}
+              onChange={(e) => setDraftDepth(Number(e.target.value))}
               disabled={loading}
             />
           </div>
 
           <div className="control-item">
             <label htmlFor="multipv-select" className="control-label">
-              Lines: <strong>{multipv}</strong>
+              Lines: <strong>{draftMultipv}</strong>
             </label>
             <input
               id="multipv-select"
@@ -143,11 +145,23 @@ export default function FenInput({
               min="1"
               max="5"
               step="1"
-              value={multipv}
-              onChange={(e) => onMultipvChange(Number(e.target.value))}
+              value={draftMultipv}
+              onChange={(e) => setDraftMultipv(Number(e.target.value))}
               disabled={loading}
             />
           </div>
+
+          {settingsChanged && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => onAnalyze(draftDepth, draftMultipv)}
+              disabled={loading || !fen.trim()}
+              title="Analyze the position on the board again with this depth and number of lines"
+            >
+              ✓ Apply
+            </button>
+          )}
 
           <button
             type="submit"
