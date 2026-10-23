@@ -6,28 +6,25 @@ import FenInput from './FenInput';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
-// FenInput shows the FEN and the applied depth and lines it is given and
-// reports through callbacks; only the sliders keep a value of their own until
-// it is applied. The tests render it with fake callbacks (vi.fn) and check
-// what they were called with.
+// FenInput is a "controlled" component: it shows the props it is given and
+// reports changes through callbacks, but never changes its own value. So the
+// tests render it with fake callbacks (vi.fn) and check what they were called with.
 function renderFenInput(props = {}) {
   const callbacks = {
     onFenChange: vi.fn(),
     onAnalyze: vi.fn(),
   };
   render(
-    <FenInput fen={START_FEN} depth={16} multipv={3} loading={false} {...callbacks} {...props} />
+    <FenInput fen={START_FEN} loading={false} {...callbacks} {...props} />
   );
   return callbacks;
 }
 
 describe('FenInput', () => {
-  it('shows the current FEN, depth and line count', () => {
+  it('shows the current FEN', () => {
     renderFenInput();
 
     expect(screen.getByLabelText('FEN Position')).toHaveValue(START_FEN);
-    expect(screen.getByLabelText(/Depth:/)).toHaveValue('16');
-    expect(screen.getByLabelText(/Lines:/)).toHaveValue('3');
   });
 
   it('reports every keystroke in the FEN box', async () => {
@@ -100,46 +97,13 @@ describe('FenInput', () => {
     expect(warn).toHaveBeenCalled();
   });
 
-  it('offers Apply only once a slider is moved, without analyzing yet', () => {
-    const { onAnalyze } = renderFenInput();
-    expect(screen.queryByRole('button', { name: /Apply/ })).not.toBeInTheDocument();
-
-    // user-event cannot drag a range slider; fireEvent sets the value directly.
-    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '20' } });
-
-    expect(screen.getByLabelText(/Depth:/)).toHaveValue('20');
-    expect(screen.getByRole('button', { name: /Apply/ })).toBeInTheDocument();
-    expect(onAnalyze).not.toHaveBeenCalled();
-  });
-
-  it('hides Apply when the sliders are moved back', () => {
-    renderFenInput();
-
-    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '20' } });
-    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '16' } });
-
-    expect(screen.queryByRole('button', { name: /Apply/ })).not.toBeInTheDocument();
-  });
-
-  it('analyzes with the slider values on Apply', async () => {
+  it('starts the analysis from the submit button', async () => {
     const user = userEvent.setup();
     const { onAnalyze } = renderFenInput();
-    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '20' } });
-    fireEvent.change(screen.getByLabelText(/Lines:/), { target: { value: '5' } });
-
-    await user.click(screen.getByRole('button', { name: /Apply/ }));
-
-    expect(onAnalyze).toHaveBeenCalledWith(20, 5);
-  });
-
-  it('starts the analysis from the submit button, with the slider values', async () => {
-    const user = userEvent.setup();
-    const { onAnalyze } = renderFenInput();
-    fireEvent.change(screen.getByLabelText(/Lines:/), { target: { value: '1' } });
 
     await user.click(screen.getByRole('button', { name: /Analyze with Stockfish/ }));
 
-    expect(onAnalyze).toHaveBeenCalledWith(16, 1);
+    expect(onAnalyze).toHaveBeenCalledTimes(1);
   });
 
   it('starts the analysis on Enter in the FEN box', async () => {
@@ -148,7 +112,7 @@ describe('FenInput', () => {
 
     await user.type(screen.getByLabelText('FEN Position'), '{Enter}');
 
-    expect(onAnalyze).toHaveBeenCalledWith(16, 3);
+    expect(onAnalyze).toHaveBeenCalledTimes(1);
   });
 
   it('cannot analyze an empty FEN', () => {
@@ -171,7 +135,6 @@ describe('FenInput', () => {
 
     expect(screen.getByRole('button', { name: /Analyzing/ })).toBeDisabled();
     expect(screen.getByLabelText('FEN Position')).toBeDisabled();
-    expect(screen.getByLabelText(/Depth:/)).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Starting Position' })).toBeDisabled();
   });
 });

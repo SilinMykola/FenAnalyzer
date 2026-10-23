@@ -428,6 +428,20 @@ describe('App PGN tab', () => {
     await waitFor(() => expect(lastAnalyzedFen()).toBe(AFTER_E4_E5_NF3));
   });
 
+  it('has the depth and lines too, and Apply analyzes the game position shown', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await loadPgn(user);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(AFTER_E4_E5_NF3));
+
+    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '24' } });
+    await user.click(screen.getByRole('button', { name: /Apply/ }));
+
+    await waitFor(() =>
+      expect(analyzeFen).toHaveBeenLastCalledWith(AFTER_E4_E5_NF3, 24, 3, false)
+    );
+  });
+
   it('reports a PGN it cannot parse', async () => {
     const user = userEvent.setup();
     await renderApp();
@@ -591,6 +605,22 @@ describe('App board editor tab', () => {
     const editedFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1';
     expect(screen.getByLabelText('FEN Position')).toHaveValue(editedFen);
     await waitFor(() => expect(lastAnalyzedFen()).toBe(editedFen));
+  });
+
+  it('has the depth and lines too; Apply keeps them for the setup analyzed next', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: /Board Editor/ }));
+    const callsBefore = analyzeFen.mock.calls.length;
+
+    fireEvent.change(screen.getByLabelText(/Depth:/), { target: { value: '12' } });
+    await user.click(screen.getByRole('button', { name: /Apply/ }));
+    // Nothing to analyze while the editor is open.
+    expect(analyzeFen).toHaveBeenCalledTimes(callsBefore);
+
+    await user.click(screen.getByRole('button', { name: /Analyze this Setup/ }));
+
+    await waitFor(() => expect(analyzeFen).toHaveBeenLastCalledWith(START_FEN, 12, 3, false));
   });
 
   // The position from the bug report: built in the editor, White to move.

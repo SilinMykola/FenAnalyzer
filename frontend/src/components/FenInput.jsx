@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 
 const PRESETS = [
   {
@@ -19,18 +19,8 @@ const PRESETS = [
   },
 ];
 
-/**
- * depth and multipv are the applied values. The sliders change only their own
- * copy, so moving them sends nothing to Stockfish; Apply, or Analyze, calls
- * onAnalyze(depth, multipv) with what they show.
- */
-export default function FenInput({ fen, onFenChange, depth, multipv, onAnalyze, loading }) {
-  const [draftDepth, setDraftDepth] = useState(depth);
-  const [draftMultipv, setDraftMultipv] = useState(multipv);
-  useEffect(() => setDraftDepth(depth), [depth]);
-  useEffect(() => setDraftMultipv(multipv), [multipv]);
-  const settingsChanged = draftDepth !== depth || draftMultipv !== multipv;
-
+// The depth and number of lines are set in AnalysisSettings, on every tab.
+export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
   const handlePasteClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -45,7 +35,7 @@ export default function FenInput({ fen, onFenChange, depth, multipv, onAnalyze, 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!fen.trim() || loading) return;
-    onAnalyze(draftDepth, draftMultipv);
+    onAnalyze();
   };
 
   return (
@@ -117,52 +107,7 @@ export default function FenInput({ fen, onFenChange, depth, multipv, onAnalyze, 
           </div>
         </div>
 
-        {/* Configuration: Depth & Lines */}
         <div className="controls-row">
-          <div className="control-item">
-            <label htmlFor="depth-select" className="control-label">
-              Depth: <strong>{draftDepth}</strong>
-            </label>
-            <input
-              id="depth-select"
-              type="range"
-              min="8"
-              max="24"
-              step="1"
-              value={draftDepth}
-              onChange={(e) => setDraftDepth(Number(e.target.value))}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="control-item">
-            <label htmlFor="multipv-select" className="control-label">
-              Lines: <strong>{draftMultipv}</strong>
-            </label>
-            <input
-              id="multipv-select"
-              type="range"
-              min="1"
-              max="5"
-              step="1"
-              value={draftMultipv}
-              onChange={(e) => setDraftMultipv(Number(e.target.value))}
-              disabled={loading}
-            />
-          </div>
-
-          {settingsChanged && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => onAnalyze(draftDepth, draftMultipv)}
-              disabled={loading || !fen.trim()}
-              title="Analyze the position on the board again with this depth and number of lines"
-            >
-              ✓ Apply
-            </button>
-          )}
-
           <button
             type="submit"
             className="btn btn-primary btn-analyze"

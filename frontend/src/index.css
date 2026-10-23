@@ -330,6 +330,20 @@ body {
 }
 
 /* Controls row (Depth, lines, analyze button) */
+/* Stockfish's depth and lines, above the content of every tab */
+.analysis-settings {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 16px;
+  padding: 12px 20px;
+}
+
+.analysis-settings-title {
+  margin: 0;
+}
+
 .controls-row {
   display: flex;
   align-items: center;

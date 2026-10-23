@@ -22,7 +22,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 
 ### 🔍 Analysis Engine
 - **Instant Stockfish Evaluation** — every move triggers server-side UCI engine analysis with configurable depth (1–30, 20 by default) and MultiPV lines (1–5)
-- **Depth and lines are applied, not streamed** — moving the Depth or Lines slider sends nothing to Stockfish; a **✓ Apply** button appears next to the sliders and analyzes the position on the board with the new values, which then stay for the moves played next. **Analyze with Stockfish** also uses what the sliders show
+- **Depth and lines on every tab** — the **Stockfish** bar with the Depth (10–30, the default 20 in the middle) and Lines sliders sits above the FEN, PGN and Board Editor tabs alike. Moving a slider sends nothing to Stockfish; a **✓ Apply** button appears and analyzes the position on the board with the new values (the game position shown on the PGN tab), which then stay for the positions analyzed next. In the Board Editor, Apply keeps them for **Analyze this Setup**
 - **Depth 20 by default** — at depth 16 Stockfish still falls for some tactics: in `r7/pp4kp/2p2qp1/4n3/N5Q1/7P/PPP3P1/3R2K1 w - - 3 25` it ranked Qd7+ first at +0.34, though Nxd7 simply wins the queen (−8.94). From depth 18 on it plays Qd4. Depth 20 takes a few seconds per position; lower it with the slider for faster answers
 - **Clickable Engine Variations** — each move in the top engine lines is an interactive badge; click any move to preview that position on the board instantly, then return to the original with one click
 - **WDL Probability Bar** — visual Win / Draw / Loss percentage breakdown from the Stockfish internal model
@@ -410,7 +410,8 @@ FenAnalyzer/
 │       ├── components/
 │       │   ├── BoardView.jsx       # Interactive board · drag-drop · best-move arrow
 │       │   ├── BoardEditor.jsx     # Custom position builder · piece palette · FEN export
-│       │   ├── FenInput.jsx        # FEN input · presets · depth & MultiPV controls
+│       │   ├── FenInput.jsx        # FEN input · presets
+│       │   ├── AnalysisSettings.jsx # Depth & MultiPV sliders with Apply, on every tab
 │       │   ├── ImageImport.jsx     # Paste / upload / drop a board image for recognition
 │       │   ├── ModelPicker.jsx     # Gemini model dropdown (header and next to a countdown)
 │       │   ├── AnalysisPanel.jsx   # Evaluation · WDL bar · MultiPV lines · Gemini AI

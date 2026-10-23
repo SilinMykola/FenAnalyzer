@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Chess } from 'chess.js';
 import FenInput from './components/FenInput';
+import AnalysisSettings from './components/AnalysisSettings';
 import BoardView from './components/BoardView';
 import AnalysisPanel from './components/AnalysisPanel';
 import PgnViewer from './components/PgnViewer';
@@ -274,6 +275,15 @@ export default function App() {
     showPosition(targetFen);
     playMoveSound(false);
     triggerAnalysis(targetFen);
+  };
+
+  // New depth and lines stay for the positions analyzed next. The board's
+  // position is analyzed again with them at once, except in the Board
+  // Editor, which shows no analysis.
+  const handleApplyAnalysisSettings = (newDepth, newMultipv) => {
+    setDepth(newDepth);
+    setMultipv(newMultipv);
+    if (activeTab !== 'editor') triggerAnalysis(fen, newDepth, newMultipv);
   };
 
   // Handler for manual FEN update (e.g. typing or preset button)
@@ -803,6 +813,17 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="main-content">
+        <AnalysisSettings
+          depth={depth}
+          multipv={multipv}
+          loading={loading}
+          onApply={handleApplyAnalysisSettings}
+          applyHint={
+            activeTab === 'editor'
+              ? 'Use this depth and number of lines when the setup is analyzed'
+              : 'Analyze the position on the board again with this depth and number of lines'
+          }
+        />
         {activeTab === 'editor' ? (
           <BoardEditor
             initialFen={fen}
@@ -828,13 +849,7 @@ export default function App() {
                   <FenInput
                     fen={fenInput}
                     onFenChange={handleFenChange}
-                    depth={depth}
-                    multipv={multipv}
-                    onAnalyze={(newDepth, newMultipv) => {
-                      setDepth(newDepth);
-                      setMultipv(newMultipv);
-                      triggerAnalysis(fen, newDepth, newMultipv);
-                    }}
+                    onAnalyze={() => triggerAnalysis(fen)}
                     loading={loading}
                   />
                   <ImageImport
