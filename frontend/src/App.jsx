@@ -215,11 +215,18 @@ export default function App() {
     });
   }, []);
 
+  // Counts analysis requests: an answer counts only if no newer request was
+  // made, or a slow analysis of a position left behind would put its lines
+  // and best-move arrow on the position shown now.
+  const analysisRequestRef = useRef(0);
+
   // Main Stockfish request function
   const triggerAnalysis = useCallback(
     async (fenToAnalyze, targetDepth = depth, targetMultipv = multipv) => {
       if (!fenToAnalyze || !fenToAnalyze.trim()) return;
 
+      const request = ++analysisRequestRef.current;
+      const isLatest = () => request === analysisRequestRef.current;
       setLoading(true);
       setError(null);
       setAnalysis(null);
@@ -230,12 +237,13 @@ export default function App() {
 
       try {
         const data = await analyzeFen(fenToAnalyze, targetDepth, targetMultipv, chess960Ref.current);
+        if (!isLatest()) return;
         setAnalysis(data);
         setBackendOnline(true);
       } catch (err) {
-        setError(err.message || 'Analysis request failed');
+        if (isLatest()) setError(err.message || 'Analysis request failed');
       } finally {
-        setLoading(false);
+        if (isLatest()) setLoading(false);
       }
     },
     [depth, multipv]

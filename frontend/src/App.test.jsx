@@ -675,6 +675,85 @@ describe('App engine line preview', () => {
     expect(chessboardProps().arePiecesDraggable).toBe(true);
   });
 
+  it('shows no arrow while previewing another line, and the best move after exit', async () => {
+    const user = userEvent.setup();
+    vi.mocked(analyzeFen).mockResolvedValue({
+      ...ANALYSIS,
+      lines: [
+        ...ANALYSIS.lines,
+        {
+          rank: 2,
+          move_uci: 'd2d4',
+          move_san: 'd4',
+          score: '+0.25',
+          pv_san: ['d4', 'd5', 'c4'],
+          pv_uci: ['d2d4', 'd7d5', 'c2c4'],
+          explanation: 'Pawn moves to d4',
+        },
+      ],
+    });
+    await renderApp();
+    const [first, second] = document.querySelectorAll('.line-item');
+
+    await user.click(within(first).getByRole('button', { name: 'e5' }));
+    await user.click(within(second).getByRole('button', { name: 'd5' }));
+
+    expect(screen.getByText('Line #2')).toBeInTheDocument();
+    expect(chessboardProps().position).toBe(
+      'rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2'
+    );
+    expect(chessboardProps().customArrows).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: /Exit/ }));
+
+    expect(chessboardProps().customArrows).toEqual([['e2', 'e4', expect.any(String)]]);
+  });
+
+  it('keeps the arrow of the position shown when an older analysis answers late', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    // Analyses that answer only when the test says so.
+    const pending = [];
+    vi.mocked(analyzeFen).mockImplementation(
+      (fen) => new Promise((resolve) => pending.push({ fen, resolve }))
+    );
+    await previewMove(user, 'e5');
+    await user.click(screen.getByRole('button', { name: /Play from here/ }));
+    // Back to the start before the first analysis is done.
+    await user.click(screen.getByTitle('Back to the loaded position'));
+    expect(pending.map((p) => p.fen)).toEqual([AFTER_E4_E5, START_FEN]);
+
+    await act(async () => pending[1].resolve(ANALYSIS));
+    await act(async () =>
+      pending[0].resolve({
+        ...ANALYSIS,
+        fen: AFTER_E4_E5,
+        lines: [{ ...ANALYSIS.lines[0], move_uci: 'g1f3', move_san: 'Nf3', pv_san: ['Nf3'], pv_uci: ['g1f3'] }],
+      })
+    );
+
+    expect(chessboardProps().position).toBe(START_FEN);
+    expect(chessboardProps().customArrows).toEqual([['e2', 'e4', expect.any(String)]]);
+  });
+
+  it('ignores an error from an analysis of a position left behind', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    const pending = [];
+    vi.mocked(analyzeFen).mockImplementation(
+      () => new Promise((resolve, reject) => pending.push({ resolve, reject }))
+    );
+    await previewMove(user, 'e5');
+    await user.click(screen.getByRole('button', { name: /Play from here/ }));
+    await user.click(screen.getByTitle('Back to the loaded position'));
+
+    await act(async () => pending[1].resolve(ANALYSIS));
+    await act(async () => pending[0].reject(new Error('Stockfish crashed')));
+
+    expect(screen.queryByText(/Stockfish crashed/)).not.toBeInTheDocument();
+    expect(screen.getByText('Even position (balanced game)')).toBeInTheDocument();
+  });
+
   it('continues the game from the previewed position', async () => {
     const user = userEvent.setup();
     await renderApp();
