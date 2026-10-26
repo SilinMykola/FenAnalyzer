@@ -65,8 +65,14 @@ export default function App() {
   const [fen, setFen] = useState(DEFAULT_FEN);
   const [fenInput, setFenInput] = useState(DEFAULT_FEN);
 
-  // Puts a position on the board and shows its FEN in the box.
+  // Variation Preview state (for clicking moves in Stockfish engine lines)
+  const [variationPreview, setVariationPreview] = useState(null);
+
+  // Puts a position on the board and shows its FEN in the box. A preview of
+  // an engine line belongs to the position before, so it ends here, whatever
+  // brought the new position: a game, a move, a FEN, an image or the editor.
   const showPosition = (newFen) => {
+    setVariationPreview(null);
     setFen(newFen);
     setFenInput(newFen);
   };
@@ -257,9 +263,6 @@ export default function App() {
     triggerAnalysis(DEFAULT_FEN);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Variation Preview state (for clicking moves in Stockfish engine lines)
-  const [variationPreview, setVariationPreview] = useState(null);
 
   // Moves played on the board since a position was loaded, so the user can
   // step through them and get back to that position (see utils/moveLine).

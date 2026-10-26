@@ -442,6 +442,63 @@ describe('App PGN tab', () => {
     );
   });
 
+  // An engine line for the game's final position, after 1. e4 e5 2. Nf3.
+  const AFTER_NF3_ANALYSIS = {
+    ...ANALYSIS,
+    fen: AFTER_E4_E5_NF3,
+    turn: 'black',
+    lines: [
+      {
+        rank: 1,
+        move_uci: 'b8c6',
+        move_san: 'Nc6',
+        score: '+0.30',
+        pv_san: ['Nc6', 'Bb5', 'a6'],
+        pv_uci: ['b8c6', 'f1b5', 'a7a6'],
+        explanation: 'Knight moves to c6',
+      },
+    ],
+  };
+
+  async function previewEngineMove(user, san) {
+    vi.mocked(analyzeFen).mockResolvedValue(AFTER_NF3_ANALYSIS);
+    const line = await waitFor(() => {
+      const found = document.querySelector('.line-item');
+      expect(found).not.toBeNull();
+      return found;
+    });
+    await user.click(within(line).getByRole('button', { name: san }));
+    expect(screen.getByText('Line #1')).toBeInTheDocument();
+  }
+
+  it('leaves an engine line preview when another game is loaded', async () => {
+    const user = userEvent.setup();
+    vi.mocked(analyzeFen).mockResolvedValue(AFTER_NF3_ANALYSIS);
+    await renderApp();
+    await loadPgn(user);
+    await previewEngineMove(user, 'a6');
+
+    await user.click(screen.getByRole('button', { name: /Import \/ Paste PGN/ }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: PGN } });
+    await user.click(screen.getByRole('button', { name: 'Parse & Load Game' }));
+
+    expect(screen.queryByText('Line #1')).not.toBeInTheDocument();
+    expect(chessboardProps().position).toBe(AFTER_E4_E5_NF3);
+  });
+
+  it('leaves an engine line preview when stepping through the game', async () => {
+    const user = userEvent.setup();
+    vi.mocked(analyzeFen).mockResolvedValue(AFTER_NF3_ANALYSIS);
+    await renderApp();
+    await loadPgn(user);
+    await previewEngineMove(user, 'a6');
+
+    await user.click(screen.getByTitle('Previous move (← Arrow)'));
+
+    expect(screen.queryByText('Line #1')).not.toBeInTheDocument();
+    expect(chessboardProps().position).toBe(AFTER_E4_E5);
+  });
+
   it('reports a PGN it cannot parse', async () => {
     const user = userEvent.setup();
     await renderApp();
