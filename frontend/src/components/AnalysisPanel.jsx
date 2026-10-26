@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { formatCountdown } from '../hooks/useGeminiCooldown';
+import { useT } from '../i18n';
 import ModelPicker from './ModelPicker';
 
 export default function AnalysisPanel({
@@ -18,6 +19,7 @@ export default function AnalysisPanel({
   variationPreview,
   onPreviewVariation,
 }) {
+  const t = useT();
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [keyDraft, setKeyDraft] = useState('');
 
@@ -26,7 +28,7 @@ export default function AnalysisPanel({
       <div className="card analysis-card placeholder-card">
         <div className="loading-state">
           <div className="pulsing-spinner"></div>
-          <p>Stockfish is computing variations and tactical evaluation...</p>
+          <p>{t('analysis.loading')}</p>
         </div>
       </div>
     );
@@ -37,8 +39,8 @@ export default function AnalysisPanel({
       <div className="card analysis-card placeholder-card">
         <div className="empty-state">
           <span className="empty-icon">♟️</span>
-          <h3>Ready for Engine Evaluation</h3>
-          <p>Make a move on the board or analyze a position to view Stockfish evaluation.</p>
+          <h3>{t('analysis.empty.title')}</h3>
+          <p>{t('analysis.empty.text')}</p>
         </div>
       </div>
     );
@@ -69,13 +71,13 @@ export default function AnalysisPanel({
     <div className="card analysis-card">
       <div className="analysis-header">
         <div>
-          <h2>Evaluation & Tactics</h2>
+          <h2>{t('analysis.title')}</h2>
           <p className="verbal-verdict">{verbal_verdict}</p>
         </div>
         <div className="header-badges">
-          {is_checkmate && <span className="status-badge badge-mate">Checkmate</span>}
-          {is_stalemate && <span className="status-badge badge-draw">Stalemate</span>}
-          {is_check && !is_checkmate && <span className="status-badge badge-check">Check!</span>}
+          {is_checkmate && <span className="status-badge badge-mate">{t('analysis.badge.checkmate')}</span>}
+          {is_stalemate && <span className="status-badge badge-draw">{t('analysis.badge.stalemate')}</span>}
+          {is_check && !is_checkmate && <span className="status-badge badge-check">{t('analysis.badge.check')}</span>}
         </div>
       </div>
 
@@ -83,7 +85,7 @@ export default function AnalysisPanel({
       {bestLine && (
         <div className="eval-summary">
           <div className="eval-score-box">
-            <span className="eval-label">Score (White's view)</span>
+            <span className="eval-label">{t('analysis.score')}</span>
             <span
               className={`eval-score ${
                 bestLine.score.startsWith('+')
@@ -103,21 +105,21 @@ export default function AnalysisPanel({
                 disabled={evalExplanation.status === 'loading' || aiWaitSeconds > 0}
                 title={
                   aiWaitSeconds > 0
-                    ? 'Gemini asked to wait before the next request; or choose another model'
-                    : 'Ask the Grandmaster why the position is rated so'
+                    ? t('analysis.why.waitHint')
+                    : t('analysis.why.hint')
                 }
               >
                 {evalExplanation.status === 'loading'
-                  ? 'Thinking…'
+                  ? t('analysis.why.thinking')
                   : aiWaitSeconds > 0
-                  ? `⏳ Why? in ${formatCountdown(aiWaitSeconds)}`
-                  : '💡 Why?'}
+                  ? t('analysis.why.wait', { time: formatCountdown(aiWaitSeconds) })
+                  : t('analysis.why.button')}
               </button>
             )}
           </div>
 
           <div className="best-move-box">
-            <span className="best-move-label">Best Move & Tactics</span>
+            <span className="best-move-label">{t('analysis.bestMove')}</span>
             <div className="best-move-content">
               <span className="best-move-san">{bestLine.move_san}</span>
               <span className="best-move-uci">({bestLine.move_uci})</span>
@@ -132,11 +134,12 @@ export default function AnalysisPanel({
       {/* Why the position is rated so, from the Grandmaster */}
       {bestLine && evalExplanation.status !== 'idle' && (
         <div className="eval-explanation" aria-live="polite">
-          <span className="eval-explanation-title">💡 Why {bestLine.score}?</span>
+          <span className="eval-explanation-title">
+            {t('analysis.why.title', { score: bestLine.score })}
+          </span>
           {evalExplanation.status === 'loading' && (
             <p className="eval-explanation-text">
-              <span className="spinner ai-spinner"></span> The Grandmaster is looking at the
-              position…
+              <span className="spinner ai-spinner"></span> {t('analysis.why.loading')}
             </p>
           )}
           {evalExplanation.status === 'done' && (
@@ -151,15 +154,15 @@ export default function AnalysisPanel({
       {/* Ask Grandmaster (Gemini AI) Section */}
       <div className="ai-grandmaster-section">
         <div className="ai-section-header">
-          <span className="ai-section-title">🎓 Grandmaster AI Commentary</span>
+          <span className="ai-section-title">{t('analysis.ai.title')}</span>
           <div className="ai-header-controls">
             <button
               type="button"
               className="btn-link-key"
               onClick={() => setShowKeyInput(!showKeyInput)}
-              title="Configure Gemini API Key"
+              title={t('analysis.key.toggle')}
             >
-              ⚙️ {customApiKey ? 'API Key Set' : 'Set API Key'}
+              ⚙️ {customApiKey ? t('analysis.key.isSet') : t('analysis.key.notSet')}
             </button>
             <button
               type="button"
@@ -168,18 +171,18 @@ export default function AnalysisPanel({
               disabled={aiLoading || !bestLine || aiWaitSeconds > 0}
               title={
                 aiWaitSeconds > 0
-                  ? 'Gemini asked to wait before the next request; or choose another model at the top'
-                  : 'Generate natural language explanation from Google Gemini'
+                  ? t('analysis.ask.waitHint')
+                  : t('analysis.ask.hint')
               }
             >
               {aiLoading ? (
                 <>
-                  <span className="spinner ai-spinner"></span> Thinking...
+                  <span className="spinner ai-spinner"></span> {t('analysis.ask.thinking')}
                 </>
               ) : aiWaitSeconds > 0 ? (
-                `⏳ Ask again in ${formatCountdown(aiWaitSeconds)}`
+                t('analysis.ask.wait', { time: formatCountdown(aiWaitSeconds) })
               ) : (
-                '🤖 Ask Grandmaster'
+                t('analysis.ask.button')
               )}
             </button>
           </div>
@@ -193,12 +196,12 @@ export default function AnalysisPanel({
           <div className="gemini-wait ai-wait">
             <ModelPicker
               {...modelPicker}
-              label="Model"
-              ariaLabel="Switch Gemini model for the commentary"
+              label={t('analysis.model.label')}
+              ariaLabel={t('analysis.model.ariaLabel')}
               className="model-picker-inline"
             />
             {aiWaitSeconds > 0 && (
-              <span>⏳ Gemini asked to wait {formatCountdown(aiWaitSeconds)} — or switch the model</span>
+              <span>{t('analysis.wait', { time: formatCountdown(aiWaitSeconds) })}</span>
             )}
           </div>
         )}
@@ -207,7 +210,7 @@ export default function AnalysisPanel({
         {showKeyInput && (
           <form onSubmit={handleSaveKey} className="key-input-form">
             <label htmlFor="gemini-key" className="key-input-label">
-              Gemini API Key (saved in browser):
+              {t('analysis.key.label')}
             </label>
             <div className="key-input-row">
               <input
@@ -219,7 +222,7 @@ export default function AnalysisPanel({
                 placeholder={customApiKey ? '••••••••••••••••' : 'AIzaSy...'}
               />
               <button type="submit" className="btn btn-primary btn-sm">
-                Save
+                {t('analysis.key.save')}
               </button>
               {customApiKey && (
                 <button
@@ -230,12 +233,12 @@ export default function AnalysisPanel({
                     setKeyDraft('');
                   }}
                 >
-                  Clear
+                  {t('analysis.key.clear')}
                 </button>
               )}
             </div>
             <p className="key-help-text">
-              Free key available in 30 seconds at{' '}
+              {t('analysis.key.helpBefore')}{' '}
               <a
                 href="https://aistudio.google.com/app/apikey"
                 target="_blank"
@@ -244,7 +247,7 @@ export default function AnalysisPanel({
               >
                 Google AI Studio ↗
               </a>{' '}
-              (or set `GEMINI_API_KEY` in `backend/.env`).
+              {t('analysis.key.helpAfter')}
             </p>
           </form>
         )}
@@ -259,7 +262,7 @@ export default function AnalysisPanel({
                 className="btn-accent-sm mt-1"
                 onClick={() => setShowKeyInput(true)}
               >
-                Enter API Key
+                {t('analysis.key.enter')}
               </button>
             )}
           </div>
@@ -270,8 +273,8 @@ export default function AnalysisPanel({
           <div className="ai-loading-card">
             <div className="pulsing-spinner ai-pulsing-spinner"></div>
             <div className="ai-loading-text">
-              <strong>Grandmaster is analyzing the board...</strong>
-              <span>Formulating tactical breakdown and strategic plan with Gemini</span>
+              <strong>{t('analysis.ai.loadingTitle')}</strong>
+              <span>{t('analysis.ai.loadingText')}</span>
             </div>
           </div>
         )}
@@ -280,14 +283,14 @@ export default function AnalysisPanel({
         {aiCommentary && !aiLoading && (
           <div className="ai-commentary-card">
             <div className="ai-commentary-header">
-              <span className="ai-commentary-badge">🎓 FIDE Grandmaster Coaching:</span>
+              <span className="ai-commentary-badge">{t('analysis.ai.badge')}</span>
               <button
                 type="button"
                 className="btn-refresh-ai"
                 onClick={onAskGrandmaster}
-                title="Regenerate Grandmaster commentary"
+                title={t('analysis.ai.refreshHint')}
               >
-                🔄 Refresh
+                {t('analysis.ai.refresh')}
               </button>
             </div>
             <p className="ai-commentary-text">"{aiCommentary}"</p>
@@ -299,28 +302,28 @@ export default function AnalysisPanel({
       {wdl && (
         <div className="wdl-container">
           <div className="wdl-header">
-            <span>Stockfish WDL Model (White / Draw / Black)</span>
+            <span>{t('analysis.wdl.title')}</span>
             <span className="wdl-legend">
-              <span className="wdl-leg-w">{wdl.win_pct}% Win</span> ·{' '}
-              <span className="wdl-leg-d">{wdl.draw_pct}% Draw</span> ·{' '}
-              <span className="wdl-leg-l">{wdl.loss_pct}% Loss</span>
+              <span className="wdl-leg-w">{t('analysis.wdl.win', { pct: wdl.win_pct })}</span> ·{' '}
+              <span className="wdl-leg-d">{t('analysis.wdl.draw', { pct: wdl.draw_pct })}</span> ·{' '}
+              <span className="wdl-leg-l">{t('analysis.wdl.loss', { pct: wdl.loss_pct })}</span>
             </span>
           </div>
           <div className="wdl-bar">
             <div
               className="wdl-segment wdl-win"
               style={{ width: `${wdl.win_pct}%` }}
-              title={`White win probability: ${wdl.win_pct}%`}
+              title={t('analysis.wdl.winHint', { pct: wdl.win_pct })}
             />
             <div
               className="wdl-segment wdl-draw"
               style={{ width: `${wdl.draw_pct}%` }}
-              title={`Draw probability: ${wdl.draw_pct}%`}
+              title={t('analysis.wdl.drawHint', { pct: wdl.draw_pct })}
             />
             <div
               className="wdl-segment wdl-loss"
               style={{ width: `${wdl.loss_pct}%` }}
-              title={`Black win probability: ${wdl.loss_pct}%`}
+              title={t('analysis.wdl.lossHint', { pct: wdl.loss_pct })}
             />
           </div>
         </div>
@@ -329,17 +332,19 @@ export default function AnalysisPanel({
       {/* Material Balance */}
       {material && (
         <div className="material-bar">
-          <span className="material-label">Material:</span>
-          <span>White {material.white} pts</span>
-          <span className="material-divider">vs</span>
-          <span>Black {material.black} pts</span>
+          <span className="material-label">{t('analysis.material')}</span>
+          <span>{t('analysis.material.white', { points: material.white })}</span>
+          <span className="material-divider">{t('analysis.material.vs')}</span>
+          <span>{t('analysis.material.black', { points: material.black })}</span>
           {material.diff !== 0 && (
             <span
               className={`material-diff-badge ${
                 material.diff > 0 ? 'diff-pos' : 'diff-neg'
               }`}
             >
-              {material.diff > 0 ? `+${material.diff} White` : `${material.diff} Black`}
+              {material.diff > 0
+                ? t('analysis.material.whiteUp', { diff: material.diff })
+                : t('analysis.material.blackUp', { diff: material.diff })}
             </span>
           )}
         </div>
@@ -347,9 +352,9 @@ export default function AnalysisPanel({
 
       {/* Top Engine Lines */}
       <div className="lines-section">
-        <h3>Top Engine Lines (MultiPV)</h3>
+        <h3>{t('analysis.lines.title')}</h3>
         {!lines || lines.length === 0 ? (
-          <p className="no-lines">No legal moves available from this position.</p>
+          <p className="no-lines">{t('analysis.lines.none')}</p>
         ) : (
           <div className="lines-list">
             {lines.map((line) => (
@@ -361,7 +366,7 @@ export default function AnalysisPanel({
                   <span className="line-score">{line.score}</span>
                 </div>
                 <div className="line-variation">
-                  <span className="variation-label">Variation:</span>{' '}
+                  <span className="variation-label">{t('analysis.lines.variation')}</span>{' '}
                   <span className="variation-moves-list">
                     {(line.pv_san && line.pv_san.length > 0 ? line.pv_san : [line.move_san]).map(
                       (m, mIdx) => {
@@ -383,7 +388,7 @@ export default function AnalysisPanel({
                                 mIdx
                               )
                             }
-                            title={`Preview position after move ${mIdx + 1}: ${m}`}
+                            title={t('analysis.lines.preview', { n: mIdx + 1, move: m })}
                           >
                             {m}
                           </button>
@@ -401,10 +406,10 @@ export default function AnalysisPanel({
       {/* Engine Stats footer */}
       {stats && (
         <div className="engine-stats">
-          <span>Depth: {stats.depth}</span>
-          {stats.nodes && <span>Nodes: {stats.nodes.toLocaleString()}</span>}
-          {stats.nps && <span>Speed: {Math.round(stats.nps / 1000)} kN/s</span>}
-          {stats.time_seconds && <span>Time: {stats.time_seconds}s</span>}
+          <span>{t('analysis.stats.depth', { depth: stats.depth })}</span>
+          {stats.nodes && <span>{t('analysis.stats.nodes', { nodes: stats.nodes.toLocaleString() })}</span>}
+          {stats.nps && <span>{t('analysis.stats.speed', { speed: Math.round(stats.nps / 1000) })}</span>}
+          {stats.time_seconds && <span>{t('analysis.stats.time', { seconds: stats.time_seconds })}</span>}
         </div>
       )}
     </div>

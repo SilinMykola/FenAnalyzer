@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../i18n';
 import { addMove, startLine } from '../utils/moveLine';
 import MoveLine from './MoveLine';
 
@@ -82,5 +83,19 @@ describe('MoveLine', () => {
     expect(screen.getByTitle('Forward one move')).toBeDisabled();
     expect(screen.getByTitle('To your last move')).toBeDisabled();
     expect(screen.getByTitle('Back one move')).toBeEnabled();
+  });
+});
+
+describe('MoveLine in another language', () => {
+  it('speaks German', () => {
+    render(
+      <I18nProvider initialLanguage="de">
+        <MoveLine line={twoMoves()} onGoTo={vi.fn()} />
+      </I18nProvider>
+    );
+
+    expect(screen.getByLabelText('Ihre Züge')).toBeInTheDocument();
+    expect(button('Anfang')).toBeInTheDocument();
+    expect(screen.getByTitle('Einen Zug zurück')).toBeInTheDocument();
   });
 });

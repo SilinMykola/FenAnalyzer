@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Chessboard } from 'react-chessboard';
+import { useT } from '../i18n';
 import { playMoveSound } from '../utils/sound';
 
 export default function BoardView({
@@ -12,6 +13,7 @@ export default function BoardView({
   onPlayBestMove,
   isGameOver,
 }) {
+  const t = useT();
   const [moveFrom, setMoveFrom] = useState(null);
   const [optionSquares, setOptionSquares] = useState({});
   const [showArrow, setShowArrow] = useState(true);
@@ -51,10 +53,10 @@ export default function BoardView({
     <div className="card board-card">
       <div className="board-header">
         <div className="board-title">
-          <span>Interactive Board</span>
+          <span>{t('board.title')}</span>
           {turn && (
             <span className={`turn-badge ${turn}`}>
-              {turn === 'white' ? '⚪ White to move' : '⚫ Black to move'}
+              {t(turn === 'white' ? 'board.turn.white' : 'board.turn.black')}
             </span>
           )}
         </div>
@@ -63,9 +65,9 @@ export default function BoardView({
             type="button"
             className="btn-secondary"
             onClick={onFlip}
-            title="Flip board orientation"
+            title={t('board.flipHint')}
           >
-            🔄 Flip ({orientation})
+            {t('board.flip', { side: t(`board.side.${orientation}`) })}
           </button>
         </div>
       </div>
@@ -90,7 +92,7 @@ export default function BoardView({
 
       <div className="board-footer-controls">
         <div className="drag-hint">
-          <span>💡 <em>Drag & drop pieces to play moves — analysis updates automatically!</em></span>
+          <span>💡 <em>{t('board.dragHint')}</em></span>
         </div>
 
         {bestMove && onPlayBestMove && !isGameOver && (
@@ -98,9 +100,9 @@ export default function BoardView({
             type="button"
             className="btn btn-action-play"
             onClick={onPlayBestMove}
-            title="Automatically play the top engine move"
+            title={t('board.playBestHint')}
           >
-            ▶ Play Best Move ({bestMove})
+            {t('board.playBest', { move: bestMove })}
           </button>
         )}
       </div>

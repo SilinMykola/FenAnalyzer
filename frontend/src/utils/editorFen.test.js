@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { translate } from '../i18n';
 import {
   CASTLING_FLAGS,
   buildFen,
@@ -199,6 +200,20 @@ describe('getPositionError', () => {
   it('names White when White is the side left in check', () => {
     expect(getPositionError('k3r3/8/8/8/8/8/8/4K3 b - - 0 1')).toBe(
       "give White the move or take White's king out of check"
+    );
+  });
+
+  it('words its instructions with the translate function it is given', () => {
+    const t = (key, params) => translate('uk', key, params);
+
+    expect(getPositionError('8/8/8/8/8/8/8/8 w - - 0 1', t)).toBe(
+      'поставте білого короля ♔ і чорного короля ♚'
+    );
+    expect(getPositionError('4k3/8/8/8/8/8/8/K3R3 w - - 0 1', t)).toBe(
+      'передайте хід чорним або приберіть шах чорному королю'
+    );
+    expect(getPositionError('4k3/8/8/8/8/8/8/4K3 w - - 0 0', t)).toBe(
+      'виправте FEN (move number must be a positive integer)'
     );
   });
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Chess } from 'chess.js';
 import FenInput from './components/FenInput';
 import AnalysisSettings from './components/AnalysisSettings';
@@ -8,6 +8,8 @@ import PgnViewer from './components/PgnViewer';
 import BoardEditor from './components/BoardEditor';
 import ImageImport from './components/ImageImport';
 import ModelPicker from './components/ModelPicker';
+import LanguagePicker from './components/LanguagePicker';
+import { I18nProvider, useI18n } from './i18n';
 import MoveLine from './components/MoveLine';
 import {
   analyzeFen,
@@ -35,9 +37,22 @@ const sideToMove = (fen) => (fen.split(' ')[1] === 'b' ? 'black' : 'white');
 // The image box's model picker also offers the local reader, which reads
 // screenshots on this machine against a board calibrated by the user.
 const LOCAL_READER = 'local';
-const LOCAL_READER_OPTIONS = [{ value: LOCAL_READER, label: '📍 Local (calibrated board)' }];
 
 export default function App() {
+  return (
+    <I18nProvider>
+      <AppContent />
+    </I18nProvider>
+  );
+}
+
+function AppContent() {
+  const { t, language } = useI18n();
+  // Stable between renders of one language, as the model pickers are memoized.
+  const localReaderOptions = useMemo(
+    () => [{ value: LOCAL_READER, label: t('app.localReader') }],
+    [t]
+  );
   // Mode: 'fen' or 'pgn'
   const [activeTab, setActiveTab] = useState('fen');
   const { theme, toggleTheme } = useTheme();
@@ -212,7 +227,7 @@ export default function App() {
     ...geminiModelPicker,
     value: readsLocally ? LOCAL_READER : geminiModel,
     onChange: handleSelectImageReader,
-    extraOptions: LOCAL_READER_OPTIONS,
+    extraOptions: localReaderOptions,
   };
 
   // Check backend health on initial load
@@ -248,12 +263,12 @@ export default function App() {
         setAnalysis(data);
         setBackendOnline(true);
       } catch (err) {
-        if (isLatest()) setError(err.message || 'Analysis request failed');
+        if (isLatest()) setError(err.message || t('app.error.analysis'));
       } finally {
         if (isLatest()) setLoading(false);
       }
     },
-    [depth, multipv]
+    [depth, multipv, t]
   );
 
   // Analyze the starting position once, on mount. Not on every new
@@ -425,7 +440,7 @@ export default function App() {
         triggerAnalysis(newFen);
       }
     } catch (e) {
-      setError(`Cannot execute move: ${e.message}`);
+      setError(t('app.error.move', { message: e.message }));
     }
   };
 
@@ -455,12 +470,12 @@ export default function App() {
       try {
         const res = await parsePgn(pgnString);
         if (!res.success) {
-          setError(res.error || 'Failed to parse PGN');
+          setError(res.error || t('app.error.pgn'));
           return;
         }
         showLoadedGame(res.headers, res.moves, res.fens, res.chess960);
       } catch (err) {
-        setError(`Failed to parse PGN: ${err.message}`);
+        setError(t('app.error.pgnWith', { message: err.message }));
       }
       return;
     }
@@ -482,7 +497,7 @@ export default function App() {
       }
       showLoadedGame(headers, history, fens, false);
     } catch (err) {
-      setError(`Failed to parse PGN: ${err.message}`);
+      setError(t('app.error.pgnWith', { message: err.message }));
     }
   };
 
@@ -529,16 +544,17 @@ export default function App() {
         verbal_verdict: analysis.verbal_verdict,
         custom_api_key: customApiKey,
         model: geminiModel,
+        language,
       });
 
       pauseGeminiAfter(res);
       if (!res.success) {
-        setAiError(res.error || 'Failed to generate commentary');
+        setAiError(res.error || t('app.error.commentary'));
       } else {
         setAiCommentary(res.commentary);
       }
     } catch (err) {
-      setAiError(err.message || 'Error communicating with AI endpoint');
+      setAiError(err.message || t('app.error.aiConnection'));
     } finally {
       setAiLoading(false);
     }
@@ -562,6 +578,7 @@ export default function App() {
         verbal_verdict: analysis.verbal_verdict,
         custom_api_key: customApiKey,
         model: geminiModel,
+        language,
         focus: 'evaluation',
         lines: analysis.lines.map((line) => ({ score: line.score, pv_san: line.pv_san || [] })),
       });
@@ -569,12 +586,12 @@ export default function App() {
       setEvalExplanation(
         res.success
           ? { status: 'done', text: res.commentary }
-          : { status: 'error', error: res.error || 'Failed to explain the evaluation' }
+          : { status: 'error', error: res.error || t('app.error.explain') }
       );
     } catch (err) {
       setEvalExplanation({
         status: 'error',
-        error: err.message || 'Error communicating with AI endpoint',
+        error: err.message || t('app.error.aiConnection'),
       });
     }
   };
@@ -630,7 +647,7 @@ export default function App() {
       if (!res.success) {
         setImageRecognition({
           status: 'error',
-          error: res.error || 'Could not calibrate from this image',
+          error: res.error || t('app.error.calibrate'),
         });
         return;
       }
@@ -640,7 +657,7 @@ export default function App() {
     } catch (err) {
       setImageRecognition({
         status: 'error',
-        error: err.message || 'Could not calibrate from this image',
+        error: err.message || t('app.error.calibrate'),
       });
     }
   };
@@ -672,7 +689,7 @@ export default function App() {
       if (!res.success) {
         setImageRecognition({
           status: 'error',
-          error: res.error || 'Could not read the position from the image',
+          error: res.error || t('app.error.readImage'),
         });
         return;
       }
@@ -686,7 +703,7 @@ export default function App() {
     } catch (err) {
       setImageRecognition({
         status: 'error',
-        error: err.message || 'Could not read the position from the image',
+        error: err.message || t('app.error.readImage'),
       });
     }
   };
@@ -737,10 +754,8 @@ export default function App() {
         <div className="header-left">
           <span className="logo-icon">♟️</span>
           <div>
-            <h1>FEN & PGN Chess Analyzer</h1>
-            <p className="subtitle">
-              Interactive Stockfish engine analysis, WDL probabilities & Gemini AI coach
-            </p>
+            <h1>{t('app.title')}</h1>
+            <p className="subtitle">{t('app.subtitle')}</p>
           </div>
         </div>
 
@@ -752,21 +767,21 @@ export default function App() {
               className={`tab-pill ${activeTab === 'fen' ? 'active' : ''}`}
               onClick={() => setActiveTab('fen')}
             >
-              FEN Analyzer
+              {t('app.tab.fen')}
             </button>
             <button
               type="button"
               className={`tab-pill ${activeTab === 'pgn' ? 'active' : ''}`}
               onClick={() => setActiveTab('pgn')}
             >
-              PGN Game Explorer
+              {t('app.tab.pgn')}
             </button>
             <button
               type="button"
               className={`tab-pill ${activeTab === 'editor' ? 'active' : ''}`}
               onClick={() => setActiveTab('editor')}
             >
-              🧩 Board Editor
+              {t('app.tab.editor')}
             </button>
           </div>
 
@@ -775,9 +790,9 @@ export default function App() {
             type="button"
             className="btn-reset-header"
             onClick={handleResetToStartingPosition}
-            title="Reset board and clear inputs to initial position"
+            title={t('app.resetHint')}
           >
-            🔄 Reset Board
+            {t('app.reset')}
           </button>
 
           {/* Backend Status indicator */}
@@ -793,21 +808,23 @@ export default function App() {
             />
             <span className="status-text">
               {backendOnline === true
-                ? 'Stockfish Ready'
+                ? t('app.status.ready')
                 : backendOnline === false
-                ? 'Backend Offline'
-                : 'Connecting...'}
+                ? t('app.status.offline')
+                : t('app.status.connecting')}
             </span>
           </div>
 
           <ModelPicker {...geminiModelPicker} />
 
+          <LanguagePicker />
+
           <button
             type="button"
             className="theme-toggle"
             onClick={toggleTheme}
-            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={theme === 'dark' ? t('app.theme.toLight') : t('app.theme.toDark')}
+            aria-label={theme === 'dark' ? t('app.theme.toLight') : t('app.theme.toDark')}
           >
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
@@ -822,9 +839,7 @@ export default function App() {
           loading={loading}
           onApply={handleApplyAnalysisSettings}
           applyHint={
-            activeTab === 'editor'
-              ? 'Use this depth and number of lines when the setup is analyzed'
-              : 'Analyze the position on the board again with this depth and number of lines'
+            activeTab === 'editor' ? t('app.settings.applyEditor') : t('app.settings.applyBoard')
           }
         />
         {activeTab === 'editor' ? (
@@ -902,9 +917,13 @@ export default function App() {
               <div className="alert-banner">
                 <span className="alert-icon">⚠️</span>
                 <div className="alert-content">
-                  <strong>Notice:</strong> {error}
+                  <strong>{t('app.notice')}</strong> {error}
                 </div>
-                <button className="alert-close" onClick={() => setError(null)}>
+                <button
+                  className="alert-close"
+                  onClick={() => setError(null)}
+                  aria-label={t('app.closeNotice')}
+                >
                   ✕
                 </button>
               </div>
@@ -916,9 +935,14 @@ export default function App() {
                 {variationPreview && (
                   <div className="variation-preview-banner">
                     <div className="vpb-info">
-                      <span className="vpb-badge">Line #{variationPreview.lineRank}</span>
+                      <span className="vpb-badge">
+                        {t('app.preview.line', { rank: variationPreview.lineRank })}
+                      </span>
                       <span className="vpb-step">
-                        Move {variationPreview.stepIndex + 1}/{variationPreview.moves.length}:{' '}
+                        {t('app.preview.move', {
+                          step: variationPreview.stepIndex + 1,
+                          total: variationPreview.moves.length,
+                        })}{' '}
                         <strong>{variationPreview.moves[variationPreview.stepIndex]}</strong>
                       </span>
                     </div>
@@ -927,34 +951,34 @@ export default function App() {
                         type="button"
                         className="btn-vpb"
                         onClick={() => handleStepVariation(-1)}
-                        title="Previous move"
+                        title={t('app.preview.prevHint')}
                       >
-                        ◀ Prev
+                        {t('app.preview.prev')}
                       </button>
                       <button
                         type="button"
                         className="btn-vpb"
                         onClick={() => handleStepVariation(1)}
                         disabled={variationPreview.stepIndex >= variationPreview.moves.length - 1}
-                        title="Next move"
+                        title={t('app.preview.nextHint')}
                       >
-                        Next ▶
+                        {t('app.preview.next')}
                       </button>
                       <button
                         type="button"
                         className="btn-vpb btn-vpb-play"
                         onClick={handleApplyVariationAsCurrent}
-                        title="Set position as current and analyze"
+                        title={t('app.preview.playHint')}
                       >
-                        ✅ Play from here
+                        {t('app.preview.play')}
                       </button>
                       <button
                         type="button"
                         className="btn-vpb btn-vpb-exit"
                         onClick={handleExitVariationPreview}
-                        title="Exit preview and return to base position"
+                        title={t('app.preview.exitHint')}
                       >
-                        ✕ Exit
+                        {t('app.preview.exit')}
                       </button>
                     </div>
                   </div>

@@ -77,6 +77,7 @@ export async function getAiCommentary({
   model,
   focus,
   lines,
+  language,
 }) {
   return postJson('/api/ai-commentary', {
     fen,
@@ -90,6 +91,8 @@ export async function getAiCommentary({
     // "evaluation" asks why the position is rated so, backed by the lines.
     focus: focus || undefined,
     lines: lines || undefined,
+    // Gemini answers in the language the app is shown in.
+    language: language || undefined,
   });
 }
 

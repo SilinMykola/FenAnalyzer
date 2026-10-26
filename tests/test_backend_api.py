@@ -752,6 +752,43 @@ class TestRetryDelay:
         assert main.gemini_retry_delay({}) is None
 
 
+class TestCommentaryLanguage:
+    def prompt_for(self, gemini, monkeypatch, **overrides):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+        gemini.reply(gemini_reply())
+        ask(**overrides)
+        return json.loads(gemini.requests[0].content)["contents"][0]["parts"][0]["text"]
+
+    @pytest.mark.parametrize(
+        "code, name", [("en", "English"), ("de", "German"), ("ru", "Russian"), ("uk", "Ukrainian")]
+    )
+    def test_asks_for_the_answer_in_the_chosen_language(self, gemini, monkeypatch, code, name):
+        prompt = self.prompt_for(gemini, monkeypatch, language=code)
+
+        assert f"Write the whole answer in {name}" in prompt
+
+    def test_asks_for_the_why_answer_in_the_chosen_language_too(self, gemini, monkeypatch):
+        prompt = self.prompt_for(gemini, monkeypatch, language="uk", focus="evaluation")
+
+        assert "Write the whole answer in Ukrainian" in prompt
+
+    def test_keeps_moves_in_standard_notation(self, gemini, monkeypatch):
+        prompt = self.prompt_for(gemini, monkeypatch, language="ru")
+
+        assert "standard algebraic notation" in prompt
+
+    def test_answers_in_english_when_no_language_is_given(self, gemini, monkeypatch):
+        assert "Write the whole answer in English" in self.prompt_for(gemini, monkeypatch)
+
+    def test_refuses_a_language_it_does_not_offer(self, gemini, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "key")
+
+        response = client.post("/api/ai-commentary", json={**COMMENTARY_REQUEST, "language": "fr"})
+
+        assert response.status_code == 422
+        assert gemini.requests == []
+
+
 class TestExplainEvaluation:
     # A position like the user's: material is level, yet Stockfish gives Black -3.14.
     FEN = "q7/1P1K3B/P2P4/2PpP1P1/2p1nPpN/p2p1p2/1p1b1Q2/1k6 b - - 0 1"

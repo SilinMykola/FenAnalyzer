@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_IMAGE_BYTES, getImageFileError, readImageAsBase64 } from './imageFile';
+import { translate } from '../i18n';
 
 // A File whose reported size can be faked without allocating megabytes.
 function fakeFile(type, size = 100) {
@@ -25,6 +26,16 @@ describe('getImageFileError', () => {
     expect(getImageFileError(fakeFile('image/png', MAX_IMAGE_BYTES + 1))).toBe(
       'The image is larger than 10 MB.'
     );
+  });
+
+  it('words the problem in the language of the given translate function', () => {
+    const t = (key, params) => translate('ru', key, params);
+
+    expect(getImageFileError(fakeFile('image/gif'), t)).toBe('Нужна картинка PNG, JPEG или WebP.');
+    expect(getImageFileError(fakeFile('image/png', MAX_IMAGE_BYTES + 1), t)).toBe(
+      'Картинка больше 10 МБ.'
+    );
+    expect(getImageFileError(fakeFile('image/png'), t)).toBeNull();
   });
 });
 

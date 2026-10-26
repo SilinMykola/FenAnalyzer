@@ -1,4 +1,5 @@
 import { Chess, validateFen } from 'chess.js';
+import { translate } from '../i18n';
 
 // Board positions in the editor are plain objects keyed by square, using the
 // same piece codes react-chessboard expects: { e1: 'wK', e8: 'bK', d2: 'wP' }.
@@ -104,23 +105,24 @@ export function parseFenMeta(fen) {
 /**
  * Returns what the user must do before the position can be analyzed,
  * phrased as an instruction, or null when it is fine to send to the engine.
+ * The editor passes its own t to get the instruction in the chosen language.
  */
-export function getPositionError(fen) {
+export function getPositionError(fen, t = (key, params) => translate('en', key, params)) {
   // Missing kings are the normal state while building a position from an
   // empty board, so name every missing king at once as an instruction.
   const board = fen.split(' ')[0];
-  const missing = [];
-  if (!board.includes('K')) missing.push('a white king ♔');
-  if (!board.includes('k')) missing.push('a black king ♚');
-  if (missing.length) return `place ${missing.join(' and ')}`;
+  const noWhite = !board.includes('K');
+  const noBlack = !board.includes('k');
+  if (noWhite && noBlack) return t('editor.error.placeBothKings');
+  if (noWhite) return t('editor.error.placeWhiteKing');
+  if (noBlack) return t('editor.error.placeBlackKing');
 
   const result = validateFen(fen);
   if (!result.ok) {
-    if (/too many \w+ kings/.test(result.error)) return 'keep only one king per side';
-    if (/pawns are on the edge rows/.test(result.error)) {
-      return 'move pawns off the first and last ranks';
-    }
-    return `fix the FEN (${result.error.replace(/^Invalid FEN: /, '')})`;
+    if (/too many \w+ kings/.test(result.error)) return t('editor.error.oneKing');
+    if (/pawns are on the edge rows/.test(result.error)) return t('editor.error.edgePawns');
+    // chess.js words its complaint in English only.
+    return t('editor.error.fixFen', { reason: result.error.replace(/^Invalid FEN: /, '') });
   }
 
   // Flip the side to move: if the side that just "moved" is in check,
@@ -129,8 +131,7 @@ export function getPositionError(fen) {
   const flipped = [board, turn === 'w' ? 'b' : 'w', ...rest].join(' ');
   try {
     if (new Chess(flipped).isCheck()) {
-      const inCheck = turn === 'w' ? 'Black' : 'White';
-      return `give ${inCheck} the move or take ${inCheck}'s king out of check`;
+      return t(turn === 'w' ? 'editor.error.blackInCheck' : 'editor.error.whiteInCheck');
     }
   } catch {
     // The flipped FEN can fail only on en passant details we never set.

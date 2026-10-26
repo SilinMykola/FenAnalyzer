@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import ImageImport from './ImageImport';
+import { I18nProvider } from '../i18n';
 
 const IDLE = { status: 'idle' };
 
@@ -634,5 +635,80 @@ describe('ImageImport with the local reader', () => {
 
     expect(screen.getByText(/Calibrated\. The local reader now reads/)).toBeInTheDocument();
     expect(screen.getByText(/seen from Black's side/)).toBeInTheDocument();
+  });
+});
+
+describe('ImageImport in another language', () => {
+  function renderIn(language, recognition, props = {}) {
+    const callbacks = { onImage: vi.fn(), onEditInEditor: vi.fn(), onClear: vi.fn() };
+    const element = (next) => (
+      <I18nProvider initialLanguage={language}>
+        <ImageImport recognition={next} {...callbacks} {...props} />
+      </I18nProvider>
+    );
+    const utils = render(element(recognition));
+    return { ...utils, rerender: (next) => utils.rerender(element(next)) };
+  }
+
+  it('labels the box, its buttons and the model picker in Russian', () => {
+    renderIn('ru', IDLE, {
+      modelPicker: { value: '', models: [], defaultModel: 'gemini-3.8-flash', onChange: vi.fn() },
+    });
+
+    expect(screen.getByText('Позиция с картинки')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '📋 Вставить картинку' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '📁 Загрузить файл' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Загрузить файл с картинкой')).toBeInTheDocument();
+    expect(screen.getByLabelText('Сменить модель Gemini для чтения картинок')).toBeInTheDocument();
+    expect(screen.getByText('Модель')).toBeInTheDocument();
+    expect(screen.getByText(/перетащите картинку сюда/)).toHaveTextContent(
+      'Вставьте скриншот доски через Ctrl+V / ⌘+V, перетащите картинку сюда или:'
+    );
+  });
+
+  it('confirms a recognized position in Ukrainian', () => {
+    renderIn('uk', {
+      status: 'done',
+      fen: '4k3/8/8/8/8/8/8/4K3 w - - 0 1',
+      turnDetected: true,
+      isValid: true,
+    });
+
+    expect(screen.getByText(/Позицію розпізнано/)).toHaveTextContent(
+      '✅ Позицію розпізнано. Хід білих (видно на зображенні).'
+    );
+    expect(screen.getByRole('button', { name: '🧩 Виправити в редакторі дошки' })).toBeInTheDocument();
+  });
+
+  it('keeps the bold parts of the calibration note in German', () => {
+    renderIn('de', IDLE, { localReader: { active: true, needsCalibration: true, calibrated: true } });
+
+    expect(screen.getByText('Lokale Erkennung kalibrieren:').tagName).toBe('STRONG');
+    expect(screen.getByText('Grundstellung').tagName).toBe('STRONG');
+    expect(screen.getByRole('button', { name: 'Abbrechen' })).toBeInTheDocument();
+  });
+
+  it('says why a file is refused in German', () => {
+    renderIn('de', IDLE);
+
+    fireEvent.change(screen.getByLabelText('Bilddatei hochladen'), {
+      target: { files: [imageFile('board.gif', 'image/gif')] },
+    });
+
+    expect(screen.getByText('⚠️ Verwenden Sie ein PNG-, JPEG- oder WebP-Bild.')).toBeInTheDocument();
+  });
+
+  it('counts down in Russian', () => {
+    const { rerender } = renderIn('ru', IDLE, { waitSeconds: 44 });
+    fireEvent.change(screen.getByLabelText('Загрузить файл с картинкой'), {
+      target: { files: [imageFile()] },
+    });
+    rerender({ status: 'error', error: 'Gemini servers are temporarily overloaded.' });
+
+    expect(screen.getByRole('timer')).toHaveTextContent(
+      '⏳ Gemini просит подождать 0:44 — или выберите другую модель вверху'
+    );
+    // The error came from the server and stays as it was sent.
+    expect(screen.getByText('⚠️ Gemini servers are temporarily overloaded.')).toBeInTheDocument();
   });
 });

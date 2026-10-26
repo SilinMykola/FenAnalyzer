@@ -222,7 +222,7 @@ describe('App start-up', () => {
     render(<App />);
 
     expect(await screen.findByText('Stockfish binary not found')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '✕' }));
+    await user.click(screen.getByRole('button', { name: 'Close' }));
 
     expect(screen.queryByText('Stockfish binary not found')).not.toBeInTheDocument();
   });
@@ -886,6 +886,7 @@ describe('App Grandmaster commentary', () => {
       verbal_verdict: 'Even position (balanced game)',
       custom_api_key: '',
       model: '',
+      language: 'en',
     });
   });
 
@@ -1241,6 +1242,41 @@ describe('App local image reader', () => {
     expect(screen.getByLabelText('Gemini model')).toHaveValue('gemini-2.5-flash-lite');
     expect(localStorage.getItem('image_reader')).toBeNull();
     expect(screen.queryByRole('button', { name: /Recalibrate/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('App language', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('switches the interface from the header and remembers the choice', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    await user.selectOptions(screen.getByLabelText('Language'), 'uk');
+
+    expect(screen.getByRole('button', { name: '🔄 Скинути дошку' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Мова')).toHaveValue('uk');
+    expect(localStorage.getItem('language')).toBe('uk');
+  });
+
+  it("opens in the browser's language", async () => {
+    vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['de-DE', 'en']);
+
+    await renderApp();
+
+    expect(screen.getByRole('button', { name: '🔄 Brett zurücksetzen' })).toBeInTheDocument();
+  });
+
+  it('asks Gemini to answer in the chosen language', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.selectOptions(screen.getByLabelText('Language'), 'ru');
+
+    await user.click(screen.getByRole('button', { name: /Ask Grandmaster|Спросить гроссмейстера/ }));
+
+    await waitFor(() =>
+      expect(getAiCommentary).toHaveBeenCalledWith(expect.objectContaining({ language: 'ru' }))
+    );
   });
 });
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useT } from '../i18n';
 
 const SAMPLE_PGN = `[Event "World Championship Match 1972"]
 [Site "Reykjavik ISL"]
@@ -24,6 +25,7 @@ export default function PgnViewer({
   onLastMove,
   headers,
 }) {
+  const t = useT();
   const [showInput, setShowInput] = useState(false);
   const activeRowRef = useRef(null);
   const sheetRef = useRef(null);
@@ -94,6 +96,8 @@ export default function PgnViewer({
 
   const totalMoves = moves.length;
   const activeMoveNum = currentMoveIndex >= 0 ? currentMoveIndex + 1 : 0;
+  // The current move number is bold, wherever the language puts it.
+  const [counterBefore, counterAfter] = t('pgn.counter', { total: totalMoves }).split('{current}');
 
   return (
     <div className="card pgn-card">
@@ -101,10 +105,10 @@ export default function PgnViewer({
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="pgn-header">
         <div className="pgn-title">
-          <h3>PGN Game Review</h3>
+          <h3>{t('pgn.title')}</h3>
           {whitePlayer && blackPlayer && (
             <span className="players-badge">
-              {whitePlayer}{whiteElo ? ` (${whiteElo})` : ''} vs {blackPlayer}{blackElo ? ` (${blackElo})` : ''}
+              {whitePlayer}{whiteElo ? ` (${whiteElo})` : ''} {t('pgn.versus')} {blackPlayer}{blackElo ? ` (${blackElo})` : ''}
               {result && <span className="result-tag">{result}</span>}
             </span>
           )}
@@ -120,9 +124,9 @@ export default function PgnViewer({
               type="button"
               className="btn-reset-game"
               onClick={() => { onPgnTextChange(''); onResetGame(); }}
-              title="Clear loaded game and reset board"
+              title={t('pgn.clearGameHint')}
             >
-              🗑️ Clear Game
+              {t('pgn.clearGame')}
             </button>
           )}
           <button
@@ -130,7 +134,7 @@ export default function PgnViewer({
             className="btn-secondary btn-sm"
             onClick={() => setShowInput(!showInput)}
           >
-            {showInput ? 'Hide PGN Input' : '📥 Import / Paste PGN'}
+            {showInput ? t('pgn.hideInput') : t('pgn.showInput')}
           </button>
         </div>
       </div>
@@ -144,7 +148,7 @@ export default function PgnViewer({
               rows="6"
               value={pgnText}
               onChange={(e) => onPgnTextChange(e.target.value)}
-              placeholder="Paste your PGN game notation here (e.g. from Chess.com or Lichess)..."
+              placeholder={t('pgn.placeholder')}
               autoFocus
             />
             {pgnText && (
@@ -152,28 +156,28 @@ export default function PgnViewer({
                 type="button"
                 className="btn-clear-inside"
                 onClick={() => onPgnTextChange('')}
-                title="Clear text"
+                title={t('pgn.clearHint')}
               >
-                ✕ Clear
+                {t('pgn.clear')}
               </button>
             )}
           </div>
           <div className="pgn-form-actions">
             <div className="pgn-left-actions">
               <button type="button" className="preset-btn" onClick={handlePasteClipboard}>
-                📋 Paste from Clipboard
+                {t('pgn.paste')}
               </button>
               <button type="button" className="preset-btn" onClick={() => onPgnTextChange(SAMPLE_PGN)}>
-                Load Fischer vs Spassky
+                {t('pgn.loadFischer')}
               </button>
               {pgnText && (
                 <button type="button" className="preset-btn btn-danger-text" onClick={() => onPgnTextChange('')}>
-                  Clear Text
+                  {t('pgn.clearText')}
                 </button>
               )}
             </div>
             <button type="submit" className="btn btn-primary btn-sm" disabled={!pgnText.trim()}>
-              Parse &amp; Load Game
+              {t('pgn.load')}
             </button>
           </div>
         </form>
@@ -181,23 +185,23 @@ export default function PgnViewer({
 
       {/* ── Navigation Controls ─────────────────────────────────────────────── */}
       <div className="pgn-controls">
-        <button type="button" className="pgn-nav-btn" onClick={onFirstMove} disabled={currentMoveIndex < 0} title="Start of game (Home)">
+        <button type="button" className="pgn-nav-btn" onClick={onFirstMove} disabled={currentMoveIndex < 0} title={t('pgn.first')}>
           ⏮
         </button>
-        <button type="button" className="pgn-nav-btn" onClick={onPrevMove} disabled={currentMoveIndex < 0} title="Previous move (← Arrow)">
+        <button type="button" className="pgn-nav-btn" onClick={onPrevMove} disabled={currentMoveIndex < 0} title={t('pgn.prev')}>
           ◀
         </button>
 
         <span className="pgn-counter">
           {totalMoves > 0
-            ? <>Move <strong>{activeMoveNum}</strong> / {totalMoves}</>
-            : 'No game loaded'}
+            ? <>{counterBefore}<strong>{activeMoveNum}</strong>{counterAfter}</>
+            : t('pgn.noGame')}
         </span>
 
-        <button type="button" className="pgn-nav-btn" onClick={onNextMove} disabled={currentMoveIndex >= moves.length - 1} title="Next move (→ Arrow)">
+        <button type="button" className="pgn-nav-btn" onClick={onNextMove} disabled={currentMoveIndex >= moves.length - 1} title={t('pgn.next')}>
           ▶
         </button>
-        <button type="button" className="pgn-nav-btn" onClick={onLastMove} disabled={currentMoveIndex >= moves.length - 1} title="End of game (End)">
+        <button type="button" className="pgn-nav-btn" onClick={onLastMove} disabled={currentMoveIndex >= moves.length - 1} title={t('pgn.last')}>
           ⏭
         </button>
       </div>
@@ -206,13 +210,13 @@ export default function PgnViewer({
       <div className="moves-sheet" ref={sheetRef}>
         {movePairs.length === 0 ? (
           <div className="no-moves-msg">
-            <p>No PGN game loaded yet.</p>
+            <p>{t('pgn.empty')}</p>
             <button
               type="button"
               className="preset-btn mt-2"
               onClick={() => { onPgnTextChange(SAMPLE_PGN); onLoadPgn(SAMPLE_PGN); }}
             >
-              Load Sample World Championship Game
+              {t('pgn.loadSample')}
             </button>
           </div>
         ) : (
@@ -220,8 +224,8 @@ export default function PgnViewer({
             <thead>
               <tr>
                 <th className="col-num">#</th>
-                <th className="col-white">⚪ White</th>
-                <th className="col-black">⚫ Black</th>
+                <th className="col-white">{t('pgn.white')}</th>
+                <th className="col-black">{t('pgn.black')}</th>
               </tr>
             </thead>
             <tbody>
@@ -243,7 +247,7 @@ export default function PgnViewer({
                           type="button"
                           className={`move-btn ${whiteActive ? 'active' : ''}`}
                           onClick={() => onSelectMove(pair.whiteIndex)}
-                          title={`Go to move ${pair.number}. ${pair.white.san}`}
+                          title={t('pgn.goToWhite', { number: pair.number, san: pair.white.san })}
                         >
                           {pair.white.san}
                         </button>
@@ -257,7 +261,7 @@ export default function PgnViewer({
                           type="button"
                           className={`move-btn ${blackActive ? 'active' : ''}`}
                           onClick={() => onSelectMove(pair.blackIndex)}
-                          title={`Go to move ${pair.number}... ${pair.black.san}`}
+                          title={t('pgn.goToBlack', { number: pair.number, san: pair.black.san })}
                         >
                           {pair.black.san}
                         </button>
@@ -276,11 +280,11 @@ export default function PgnViewer({
       {/* ── Result Footer ───────────────────────────────────────────────────── */}
       {result && moves.length > 0 && (
         <div className="pgn-result-footer">
-          <span className="result-label">Result:</span>
+          <span className="result-label">{t('pgn.result')}</span>
           <span className={`result-value ${result === '1-0' ? 'white-wins' : result === '0-1' ? 'black-wins' : 'draw'}`}>
-            {result === '1-0' ? '1–0 White wins'
-              : result === '0-1' ? '0–1 Black wins'
-              : result === '1/2-1/2' ? '½–½ Draw'
+            {result === '1-0' ? t('pgn.whiteWins')
+              : result === '0-1' ? t('pgn.blackWins')
+              : result === '1/2-1/2' ? t('pgn.draw')
               : result}
           </span>
         </div>

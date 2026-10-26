@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { chessboardProps } from '../test/mockChessboard';
+import { I18nProvider } from '../i18n';
 import { playMoveSound } from '../utils/sound';
 import BoardEditor from './BoardEditor';
 
@@ -377,5 +378,37 @@ describe('BoardEditor validation and analysis', () => {
 
     expect(screen.queryByText(/To analyze this position/)).not.toBeInTheDocument();
     expect(analyzeButton()).toBeEnabled();
+  });
+});
+
+describe('BoardEditor in another language', () => {
+  function renderIn(language, initialFen) {
+    render(
+      <I18nProvider initialLanguage={language}>
+        <BoardEditor initialFen={initialFen} onApplyFen={vi.fn()} />
+      </I18nProvider>
+    );
+  }
+
+  it('shows its controls in Ukrainian', () => {
+    renderIn('uk', START_FEN);
+
+    expect(screen.getByRole('heading', { name: '🧩 Редактор шахової дошки' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '⚪ Хід білих' })).toHaveClass('active');
+    expect(castlingBox('Білі O-O (коротка)')).toBeChecked();
+    expect(screen.getByTitle('Вибрати чорну туру')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Аналізувати позицію в Stockfish/ })).toBeEnabled();
+  });
+
+  it('puts the instruction for an unfinished position into a whole Russian sentence', () => {
+    renderIn('ru', EMPTY_FEN);
+
+    const warning = document.querySelector('.editor-warn-box');
+    expect(warning).toHaveTextContent(
+      '⚠️ Чтобы проанализировать эту позицию, поставьте белого короля ♔ и чёрного короля ♚.'
+    );
+    expect(within(warning).getByText('поставьте белого короля ♔ и чёрного короля ♚').tagName).toBe(
+      'STRONG'
+    );
   });
 });

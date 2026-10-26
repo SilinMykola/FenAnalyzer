@@ -458,6 +458,8 @@ class AiCommentaryRequest(BaseModel):
     # the position as it does, backed by its top lines.
     focus: Literal["move", "evaluation"] = "move"
     lines: List[EngineLineForPrompt] = Field(default_factory=list, max_length=5)
+    # The language the user reads the app in; Gemini answers in it.
+    language: Literal["en", "de", "ru", "uk"] = "en"
 
 
 class AiCommentaryResponse(BaseModel):
@@ -658,6 +660,18 @@ async def list_gemini_models(payload: GeminiModelsRequest):
     return GeminiModelsResponse(success=True, models=sorted(set(models)), default_model=default_model)
 
 
+LANGUAGE_NAMES = {"en": "English", "de": "German", "ru": "Russian", "uk": "Ukrainian"}
+
+
+def language_instruction(payload: AiCommentaryRequest) -> str:
+    """The last line of every commentary prompt: the user's language, with
+    the moves kept as players everywhere write them."""
+    return (
+        f"Write the whole answer in {LANGUAGE_NAMES[payload.language]}, "
+        "but keep moves and squares in standard algebraic notation (e4, Nf3, O-O)."
+    )
+
+
 def move_prompt(payload: AiCommentaryRequest) -> str:
     """Asks why the engine's best move is best and what the plan is."""
     return f"""You are a distinguished FIDE Grandmaster and friendly chess coach.
@@ -672,7 +686,8 @@ Instructions:
 2. Clearly explain WHY {payload.best_move_san} is the strongest move (tactical trap, space advantage, piece activity, or defensive necessity).
 3. Outline the immediate concrete plan for {payload.turn.capitalize()}.
 4. Do NOT output a raw FEN breakdown or lists of piece locations; focus directly on ideas and plans.
-5. Start straight with the assessment: no greeting, no headings, no Markdown. Plain prose only."""
+5. Start straight with the assessment: no greeting, no headings, no Markdown. Plain prose only.
+6. {language_instruction(payload)}"""
 
 
 def evaluation_prompt(payload: AiCommentaryRequest) -> str:
@@ -703,7 +718,8 @@ Instructions:
 1. Name the concrete reasons behind the evaluation: material, immediate threats and tactics, king safety, piece activity, pawn structure (passed pawns, weaknesses).
 2. When the material is level but the evaluation is not, say what outweighs it.
 3. Use the engine lines above as evidence: say what the main line wins, forces or threatens. Do not invent moves that are not in them.
-4. Answer in 3-6 sentences of plain prose: no greeting, no headings, no Markdown, no lists of piece locations."""
+4. Answer in 3-6 sentences of plain prose: no greeting, no headings, no Markdown, no lists of piece locations.
+5. {language_instruction(payload)}"""
 
 
 @app.post("/api/ai-commentary", response_model=AiCommentaryResponse)

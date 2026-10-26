@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import ModelPicker from './ModelPicker';
+import { I18nProvider } from '../i18n';
 
 const MODELS = ['gemini-2.5-flash-lite', 'gemini-3.8-flash'];
 
@@ -74,5 +75,42 @@ describe('ModelPicker', () => {
 
     expect(screen.queryByText('🤖 Gemini')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Switch Gemini model for reading images')).toBeInTheDocument();
+  });
+});
+
+describe('ModelPicker in another language', () => {
+  function renderIn(language, props = {}) {
+    render(
+      <I18nProvider initialLanguage={language}>
+        <ModelPicker value="" models={MODELS} onChange={vi.fn()} {...props} />
+      </I18nProvider>
+    );
+  }
+
+  it('names itself and the default model in Russian, model names as they are', () => {
+    renderIn('ru', { defaultModel: 'gemini-3.8-flash' });
+
+    const select = screen.getByLabelText('Модель Gemini');
+    expect(optionTexts(select)).toEqual([
+      'По умолчанию (gemini-3.8-flash)',
+      'gemini-2.5-flash-lite',
+      'gemini-3.8-flash',
+    ]);
+    expect(select.closest('label')).toHaveAttribute(
+      'title',
+      'Модель Gemini для комментариев и чтения картинок'
+    );
+  });
+
+  it('names the unknown default in Ukrainian', () => {
+    renderIn('uk', { defaultModel: null, models: [] });
+
+    expect(optionTexts(screen.getByLabelText('Модель Gemini'))).toEqual(['Типова модель']);
+  });
+
+  it('keeps an accessible name given by the caller', () => {
+    renderIn('de', { ariaLabel: 'Gemini-Modell zum Lesen von Bildern wechseln' });
+
+    expect(screen.getByLabelText('Gemini-Modell zum Lesen von Bildern wechseln')).toBeInTheDocument();
   });
 });

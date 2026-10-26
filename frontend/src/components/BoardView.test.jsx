@@ -3,6 +3,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { chessboardProps } from '../test/mockChessboard';
+import { I18nProvider } from '../i18n';
 import BoardView from './BoardView';
 
 // vi.mock replaces a module for every import in this test file, including the
@@ -182,5 +183,25 @@ describe('BoardView', () => {
     renderBoard({ isGameOver: false });
 
     expect(chessboardProps().arePiecesDraggable).toBe(true);
+  });
+
+  it('speaks German inside a German provider', () => {
+    render(
+      <I18nProvider initialLanguage="de">
+        <BoardView
+          fen={AFTER_E4}
+          turn="black"
+          orientation="black"
+          bestMove="e7e5"
+          onPieceDrop={vi.fn()}
+          onPlayBestMove={vi.fn()}
+        />
+      </I18nProvider>
+    );
+
+    expect(screen.getByText('Interaktives Brett')).toBeInTheDocument();
+    expect(screen.getByText('⚫ Schwarz am Zug')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '🔄 Drehen (Schwarz unten)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '▶ Besten Zug spielen (e7e5)' })).toBeInTheDocument();
   });
 });

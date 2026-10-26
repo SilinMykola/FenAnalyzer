@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../i18n';
 import AnalysisPanel from './AnalysisPanel';
 
 // The shape the backend's /api/analyze returns.
@@ -413,5 +414,29 @@ describe('AnalysisPanel explaining the evaluation', () => {
     renderPanel();
 
     expect(screen.queryByRole('button', { name: /Why\?/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('AnalysisPanel in another language', () => {
+  const renderIn = (language, props = {}) =>
+    render(
+      <I18nProvider initialLanguage={language}>
+        <AnalysisPanel analysis={makeAnalysis()} loading={false} onAskGrandmaster={vi.fn()} {...props} />
+      </I18nProvider>
+    );
+
+  it('speaks Russian, leaving the engine verdict as the backend wrote it', () => {
+    renderIn('ru');
+
+    expect(screen.getByText('Оценка и тактика')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '🤖 Спросить гроссмейстера' })).toBeInTheDocument();
+    expect(screen.getByText('Глубина: 18')).toBeInTheDocument();
+    expect(screen.getByText('Even position (balanced game)')).toBeInTheDocument();
+  });
+
+  it('counts down in German while Gemini asks to wait', () => {
+    renderIn('de', { aiWaitSeconds: 44 });
+
+    expect(screen.getByRole('button', { name: '⏳ Erneut fragen in 0:44' })).toBeDisabled();
   });
 });

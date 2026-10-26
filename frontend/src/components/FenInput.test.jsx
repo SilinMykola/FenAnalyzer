@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../i18n';
 import FenInput from './FenInput';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -136,5 +137,21 @@ describe('FenInput', () => {
     expect(screen.getByRole('button', { name: /Analyzing/ })).toBeDisabled();
     expect(screen.getByLabelText('FEN Position')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Starting Position' })).toBeDisabled();
+  });
+
+  it('speaks Russian inside a Russian provider', () => {
+    render(
+      <I18nProvider initialLanguage="ru">
+        <FenInput fen={START_FEN} loading={false} onFenChange={vi.fn()} onAnalyze={vi.fn()} />
+      </I18nProvider>
+    );
+
+    expect(screen.getByLabelText('Позиция FEN')).toHaveAttribute(
+      'placeholder',
+      'Вставьте FEN сюда (например, rnbqkbnr/pppppppp/...)'
+    );
+    expect(screen.getByRole('button', { name: 'Бессмертная Каспарова (1999)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Эндшпиль (ладья + пешка)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '⚡ Анализировать в Stockfish' })).toBeEnabled();
   });
 });

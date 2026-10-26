@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { Chess } from 'chess.js';
 import { describe, expect, it, vi } from 'vitest';
 import PgnViewer from './PgnViewer';
+import { I18nProvider } from '../i18n';
 
 // Real move objects, built by chess.js the same way App builds them.
 function movesFrom(sans, fen) {
@@ -14,7 +15,7 @@ function movesFrom(sans, fen) {
 
 const OPENING = movesFrom(['e4', 'e5', 'Nf3', 'Nc6', 'Bb5']);
 
-function renderViewer(props = {}) {
+function renderViewer(props = {}, language) {
   const callbacks = {
     onPgnTextChange: vi.fn(),
     onLoadPgn: vi.fn(),
@@ -33,8 +34,9 @@ function renderViewer(props = {}) {
     ...callbacks,
     ...props,
   };
-  const utils = render(<PgnViewer {...allProps} />);
-  const rerender = (changes) => utils.rerender(<PgnViewer {...allProps} {...changes} />);
+  const wrap = (ui) => (language ? <I18nProvider initialLanguage={language}>{ui}</I18nProvider> : ui);
+  const utils = render(wrap(<PgnViewer {...allProps} />));
+  const rerender = (changes) => utils.rerender(wrap(<PgnViewer {...allProps} {...changes} />));
   return { ...callbacks, rerender };
 }
 
@@ -319,5 +321,31 @@ describe('PgnViewer import form', () => {
     await user.click(screen.getByRole('button', { name: /Paste from Clipboard/ }));
 
     expect(onPgnTextChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('PgnViewer in another language', () => {
+  it('speaks German, numbers and moves included', async () => {
+    const user = userEvent.setup();
+    renderViewer({ currentMoveIndex: 1, headers: { Result: '0-1' } }, 'de');
+
+    expect(document.querySelector('.pgn-counter').textContent).toBe('Zug 2 / 5');
+    expect(screen.getByRole('columnheader', { name: '⚪ Weiß' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: '⚫ Schwarz' })).toBeInTheDocument();
+    expect(screen.getByTitle('Zu Zug 1... e5')).toBeInTheDocument();
+    expect(navButton('Nächster Zug')).toBeEnabled();
+    expect(screen.getByText('Ergebnis:')).toBeInTheDocument();
+    expect(screen.getByText('0–1 Schwarz gewinnt')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '📥 PGN importieren / einfügen' }));
+    expect(screen.getByPlaceholderText(/hier einfügen/)).toBeInTheDocument();
+  });
+
+  it('speaks Russian when no game is loaded', () => {
+    renderViewer({ moves: [], currentMoveIndex: -1 }, 'ru');
+
+    expect(screen.getByText('Партия не загружена')).toBeInTheDocument();
+    expect(screen.getByText('Партия PGN ещё не загружена.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Разбор партии PGN' })).toBeInTheDocument();
   });
 });

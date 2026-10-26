@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../i18n';
 import AnalysisSettings from './AnalysisSettings';
 
 function renderSettings(props = {}) {
@@ -80,5 +81,19 @@ describe('AnalysisSettings', () => {
 
     expect(screen.getByLabelText(/Depth:/)).toBeDisabled();
     expect(screen.getByLabelText(/Lines:/)).toBeDisabled();
+  });
+});
+
+describe('AnalysisSettings in another language', () => {
+  it('speaks Ukrainian', () => {
+    render(
+      <I18nProvider initialLanguage="uk">
+        <AnalysisSettings depth={20} multipv={3} loading={false} onApply={vi.fn()} />
+      </I18nProvider>
+    );
+    slide(/Глибина:/, 24);
+
+    expect(screen.getByLabelText(/Лінії:/)).toHaveValue('3');
+    expect(screen.getByRole('button', { name: '✓ Застосувати' })).toBeInTheDocument();
   });
 });

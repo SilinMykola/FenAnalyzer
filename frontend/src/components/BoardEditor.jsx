@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Chessboard } from 'react-chessboard';
+import { useT } from '../i18n';
 import { playMoveSound } from '../utils/sound';
 import {
+  CASTLING_FLAGS,
   buildFen,
   fenToPosition,
   getPositionError,
@@ -13,21 +15,21 @@ const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const ALL_CASTLING = { K: true, Q: true, k: true, q: true };
 
 const WHITE_PIECES = [
-  { code: 'wK', symbol: '♔', label: 'King' },
-  { code: 'wQ', symbol: '♕', label: 'Queen' },
-  { code: 'wR', symbol: '♖', label: 'Rook' },
-  { code: 'wB', symbol: '♗', label: 'Bishop' },
-  { code: 'wN', symbol: '♘', label: 'Knight' },
-  { code: 'wP', symbol: '♙', label: 'Pawn' },
+  { code: 'wK', symbol: '♔' },
+  { code: 'wQ', symbol: '♕' },
+  { code: 'wR', symbol: '♖' },
+  { code: 'wB', symbol: '♗' },
+  { code: 'wN', symbol: '♘' },
+  { code: 'wP', symbol: '♙' },
 ];
 
 const BLACK_PIECES = [
-  { code: 'bK', symbol: '♚', label: 'King' },
-  { code: 'bQ', symbol: '♛', label: 'Queen' },
-  { code: 'bR', symbol: '♜', label: 'Rook' },
-  { code: 'bB', symbol: '♝', label: 'Bishop' },
-  { code: 'bN', symbol: '♞', label: 'Knight' },
-  { code: 'bP', symbol: '♟', label: 'Pawn' },
+  { code: 'bK', symbol: '♚' },
+  { code: 'bQ', symbol: '♛' },
+  { code: 'bR', symbol: '♜' },
+  { code: 'bB', symbol: '♝' },
+  { code: 'bN', symbol: '♞' },
+  { code: 'bP', symbol: '♟' },
 ];
 
 // Places a piece on a square. A side has only one king, so placing a king
@@ -52,6 +54,7 @@ function initialPosition(fen) {
 }
 
 export default function BoardEditor({ onApplyFen, initialFen }) {
+  const t = useT();
   // The editor's source of truth: pieces, side to move and castling wishes.
   // The FEN is derived from these on every render, never stored separately.
   const [position, setPosition] = useState(() => initialPosition(initialFen || STARTING_FEN));
@@ -65,7 +68,7 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
   const [orientation, setOrientation] = useState('white');
 
   const fen = buildFen(position, turn, castling);
-  const positionError = getPositionError(fen);
+  const positionError = getPositionError(fen, t);
 
   const handleSquareClick = (square) => {
     const placing = selectedTool && selectedTool !== 'trash';
@@ -144,10 +147,9 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
   // within reach; selecting it in one highlights it in both.
   const renderPalette = (color) => {
     const pieces = color === 'white' ? WHITE_PIECES : BLACK_PIECES;
-    const colorName = color === 'white' ? 'White' : 'Black';
     return (
       <div className={`piece-palette ${color}-palette`}>
-        <span className="palette-label">{colorName}</span>
+        <span className="palette-label">{t(`editor.palette.${color}`)}</span>
         <div className="palette-items">
           {pieces.map((p) => {
             const isSelected = selectedTool === p.code;
@@ -157,7 +159,7 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
                 type="button"
                 className={`palette-btn ${isSelected ? 'active' : ''}`}
                 onClick={() => setSelectedTool(isSelected ? null : p.code)}
-                title={`Select ${colorName} ${p.label}`}
+                title={t(`editor.select.${p.code}`)}
               >
                 <span className="piece-symbol">{p.symbol}</span>
               </button>
@@ -167,7 +169,7 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
             type="button"
             className={`palette-btn btn-trash ${selectedTool === 'trash' ? 'active' : ''}`}
             onClick={() => setSelectedTool(selectedTool === 'trash' ? null : 'trash')}
-            title="Eraser: click squares to remove pieces"
+            title={t('editor.eraser')}
           >
             🗑️
           </button>
@@ -179,36 +181,31 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
   const bottomColor = orientation;
   const topColor = orientation === 'white' ? 'black' : 'white';
 
-  const castlingOptions = [
-    { flag: 'K', label: 'White O-O (Kingside)' },
-    { flag: 'Q', label: 'White O-O-O (Queenside)' },
-    { flag: 'k', label: 'Black O-O (Kingside)' },
-    { flag: 'q', label: 'Black O-O-O (Queenside)' },
-  ];
+  // The validation sentence holds the instruction in bold, wherever the
+  // language puts it: split the sentence around its {error} placeholder.
+  const [warnBefore, warnAfter] = t('editor.warn').split('{error}');
 
   return (
     <div className="card board-editor-card">
       <div className="editor-header">
         <div>
-          <h3>🧩 Chess Board Editor</h3>
-          <p className="editor-subtitle">
-            Place pieces, set custom game setups, and export clean FEN for Stockfish analysis.
-          </p>
+          <h3>{t('editor.title')}</h3>
+          <p className="editor-subtitle">{t('editor.subtitle')}</p>
         </div>
         <div className="editor-top-actions">
           <button type="button" className="preset-btn btn-danger-text" onClick={handleClearBoard}>
-            🧹 Clear Board
+            {t('editor.clear')}
           </button>
           <button
             type="button"
             className="preset-btn"
             onClick={handleFlipBoard}
-            title="Flip the board and swap the piece palettes"
+            title={t('editor.flipHint')}
           >
-            🔃 Flip Board
+            {t('editor.flip')}
           </button>
           <button type="button" className="preset-btn" onClick={handleResetStarting}>
-            🔄 Starting Position
+            {t('editor.start')}
           </button>
         </div>
       </div>
@@ -243,36 +240,36 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
         <div className="editor-controls-col">
           {/* Turn selector */}
           <div className="editor-card-section">
-            <span className="section-heading">Turn to Move</span>
+            <span className="section-heading">{t('editor.turn.heading')}</span>
             <div className="turn-toggle-row">
               <button
                 type="button"
                 className={`turn-btn ${turn === 'w' ? 'active' : ''}`}
                 onClick={() => setTurn('w')}
               >
-                ⚪ White to Move
+                {t('editor.turn.white')}
               </button>
               <button
                 type="button"
                 className={`turn-btn ${turn === 'b' ? 'active' : ''}`}
                 onClick={() => setTurn('b')}
               >
-                ⚫ Black to Move
+                {t('editor.turn.black')}
               </button>
             </div>
           </div>
 
           {/* Castling Rights */}
           <div className="editor-card-section">
-            <span className="section-heading">Castling Availability</span>
+            <span className="section-heading">{t('editor.castling.heading')}</span>
             <div className="castling-checkboxes">
-              {castlingOptions.map(({ flag, label }) => {
+              {CASTLING_FLAGS.map((flag) => {
                 const possible = isCastlingPossible(position, flag);
                 return (
                   <label
                     key={flag}
                     className="checkbox-label"
-                    title={possible ? undefined : 'King and rook must be on their starting squares'}
+                    title={possible ? undefined : t('editor.castling.impossible')}
                   >
                     <input
                       type="checkbox"
@@ -280,7 +277,7 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
                       disabled={!possible}
                       onChange={() => handleCastlingToggle(flag)}
                     />
-                    {label}
+                    {t(`editor.castling.${flag}`)}
                   </label>
                 );
               })}
@@ -289,7 +286,7 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
 
           {/* Resulting FEN Display */}
           <div className="editor-card-section">
-            <span className="section-heading">Generated FEN</span>
+            <span className="section-heading">{t('editor.fen.heading')}</span>
             <div className="fen-result-box">
               <textarea
                 className="fen-result-textarea"
@@ -303,9 +300,9 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
                   type="button"
                   className="preset-btn"
                   onClick={handleCopyFen}
-                  title="Copy generated FEN"
+                  title={t('editor.copyHint')}
                 >
-                  {copied ? '✅ Copied!' : '📋 Copy FEN'}
+                  {copied ? t('editor.copied') : t('editor.copy')}
                 </button>
               </div>
             </div>
@@ -313,7 +310,9 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
             {/* Validation warning */}
             {positionError && (
               <div className="editor-warn-box">
-                ⚠️ To analyze this position, <strong>{positionError}</strong>.
+                {warnBefore}
+                <strong>{positionError}</strong>
+                {warnAfter}
               </div>
             )}
           </div>
@@ -325,7 +324,7 @@ export default function BoardEditor({ onApplyFen, initialFen }) {
             disabled={Boolean(positionError)}
             onClick={() => onApplyFen(fen)}
           >
-            ⚡ Analyze this Setup with Stockfish
+            {t('editor.analyze')}
           </button>
         </div>
       </div>

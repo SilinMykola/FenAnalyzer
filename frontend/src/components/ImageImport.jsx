@@ -2,8 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { IMAGE_TYPES, getImageFileError } from '../utils/imageFile';
 import { formatCountdown } from '../hooks/useGeminiCooldown';
 import ModelPicker from './ModelPicker';
+import { useT } from '../i18n';
 
-const PASTE_HINT = 'press Ctrl+V / ⌘V to paste the image instead';
+// Puts elements into a translated text at its {name} placeholders, for texts
+// with markup inside: each language keeps its own word order around them.
+function withElements(text, elements) {
+  return text
+    .split(/\{(\w+)\}/)
+    .map((part, i) => (i % 2 ? <React.Fragment key={i}>{elements[part]}</React.Fragment> : part));
+}
 
 /**
  * Takes a picture of a chess position: pasted from the clipboard, chosen as
@@ -32,6 +39,7 @@ export default function ImageImport({
   modelPicker,
   localReader,
 }) {
+  const t = useT();
   // Object URL of the last image, shown as a thumbnail next to the result.
   const [previewUrl, setPreviewUrl] = useState(null);
   // The last image sent, kept so a failed recognition can be tried again.
@@ -45,7 +53,7 @@ export default function ImageImport({
 
   const handleImage = (file) => {
     if (recognizing) return;
-    const fileError = getImageFileError(file);
+    const fileError = getImageFileError(file, t);
     if (fileError) {
       setLocalError(fileError);
       return;
@@ -85,20 +93,20 @@ export default function ImageImport({
   // not every browser allows; the keyboard paste above works everywhere.
   const handlePasteButton = async () => {
     if (!navigator.clipboard?.read) {
-      setLocalError(`This browser cannot read images from the clipboard here — ${PASTE_HINT}.`);
+      setLocalError(t('image.error.noClipboardApi'));
       return;
     }
     try {
       for (const item of await navigator.clipboard.read()) {
-        const type = item.types.find((t) => t.startsWith('image/'));
+        const type = item.types.find((mime) => mime.startsWith('image/'));
         if (type) {
           handleImage(await item.getType(type));
           return;
         }
       }
-      setLocalError('The clipboard has no image. Copy a screenshot of the board first.');
+      setLocalError(t('image.error.clipboardEmpty'));
     } catch {
-      setLocalError(`Clipboard access was denied — ${PASTE_HINT}.`);
+      setLocalError(t('image.error.clipboardDenied'));
     }
   };
 
@@ -125,7 +133,8 @@ export default function ImageImport({
   };
 
   const error = localError || (recognition.status === 'error' ? recognition.error : null);
-  const sideToMove = recognition.fen?.split(' ')[1] === 'b' ? 'Black' : 'White';
+  const sideToMove =
+    recognition.fen?.split(' ')[1] === 'b' ? t('image.blackToMove') : t('image.whiteToMove');
   // Offered after a failure and after a result, which may be a misread.
   const canRetry =
     !localError &&
@@ -138,18 +147,18 @@ export default function ImageImport({
       type="button"
       className="preset-btn"
       onClick={onRotate}
-      title="The board came out upside down: turn the position by 180 degrees"
+      title={t('image.rotateHint')}
     >
-      ↻ Upside down? Turn 180°
+      {t('image.rotate')}
     </button>
   );
-  const seenFromBlackNote = ' The picture shows the board from Black\'s side; it was turned to White\'s.';
+  const seenFromBlackNote = ` ${t('image.seenFromBlack')}`;
   const hasSomethingToClear = Boolean(previewUrl || localError || recognition.status !== 'idle');
   const calibrating = Boolean(localReader?.active && localReader.needsCalibration);
 
   return (
     <div className="card image-import-card">
-      <span className="form-label">Position from Image</span>
+      <span className="form-label">{t('image.title')}</span>
 
       <div
         className={`image-drop-zone ${dragOver ? 'drag-over' : ''}`}
@@ -162,17 +171,17 @@ export default function ImageImport({
         data-testid="image-drop-zone"
       >
         {previewUrl && (
-          <img className="image-preview" src={previewUrl} alt="Imported chess position" />
+          <img className="image-preview" src={previewUrl} alt={t('image.previewAlt')} />
         )}
 
         <div className="image-drop-body">
           {calibrating && (
             <div className="calibration-note">
               <span>
-                🎯 <strong>Calibrate the local reader:</strong> paste or upload a screenshot of the{' '}
-                <strong>starting position</strong>, taken on the site your screenshots come from.
-                Either side may be at the bottom. From it the reader learns that site&apos;s board
-                and pieces.
+                {withElements(t('image.calibrate.note'), {
+                  title: <strong>{t('image.calibrate.title')}</strong>,
+                  start: <strong>{t('image.calibrate.start')}</strong>,
+                })}
               </span>
               {localReader.calibrated && (
                 <button
@@ -181,15 +190,20 @@ export default function ImageImport({
                   onClick={localReader.onCancelCalibration}
                   disabled={recognizing}
                 >
-                  Cancel
+                  {t('image.cancel')}
                 </button>
               )}
             </div>
           )}
 
           <p className="image-drop-text">
-            Paste a screenshot of a board with <kbd>Ctrl</kbd>+<kbd>V</kbd> / <kbd>⌘</kbd>+
-            <kbd>V</kbd>, drop an image here, or:
+            {withElements(t('image.pasteText'), {
+              keys: (
+                <>
+                  <kbd>Ctrl</kbd>+<kbd>V</kbd> / <kbd>⌘</kbd>+<kbd>V</kbd>
+                </>
+              ),
+            })}
           </p>
           <div className="presets-buttons">
             <button
@@ -198,7 +212,7 @@ export default function ImageImport({
               onClick={handlePasteButton}
               disabled={recognizing}
             >
-              📋 Paste Image
+              {t('image.paste')}
             </button>
             <button
               type="button"
@@ -206,14 +220,14 @@ export default function ImageImport({
               onClick={() => fileInputRef.current?.click()}
               disabled={recognizing}
             >
-              📁 Upload File
+              {t('image.upload')}
             </button>
             <input
               ref={fileInputRef}
               type="file"
               accept={IMAGE_TYPES.join(',')}
               onChange={handleFileChosen}
-              aria-label="Upload image file"
+              aria-label={t('image.uploadAria')}
               hidden
             />
             {hasSomethingToClear && (
@@ -223,7 +237,7 @@ export default function ImageImport({
                 onClick={handleClear}
                 disabled={recognizing}
               >
-                Clear Image
+                {t('image.clear')}
               </button>
             )}
           </div>
@@ -235,8 +249,8 @@ export default function ImageImport({
             <div className="image-model-row">
               <ModelPicker
                 {...modelPicker}
-                label="Model"
-                ariaLabel="Switch Gemini model for reading images"
+                label={t('image.model')}
+                ariaLabel={t('image.modelAria')}
                 className="model-picker-inline"
               />
               {localReader?.active && !calibrating && (
@@ -245,9 +259,9 @@ export default function ImageImport({
                   className="preset-btn"
                   onClick={localReader.onRecalibrate}
                   disabled={recognizing}
-                  title="Teach the local reader another board style from a screenshot of the starting position"
+                  title={t('image.recalibrateHint')}
                 >
-                  🎯 Recalibrate
+                  {t('image.recalibrate')}
                 </button>
               )}
             </div>
@@ -257,17 +271,16 @@ export default function ImageImport({
             <p className="image-status">
               <span className="spinner"></span>{' '}
               {recognition.calibrating
-                ? 'Learning the board and pieces from the starting position...'
-                : 'Reading the position from the image...'}
+                ? t('image.calibrating')
+                : t('image.reading')}
             </p>
           )}
 
           {!localError && recognition.status === 'calibrated' && (
             <div className="image-result">
               <span>
-                ✅ Calibrated. The local reader now reads screenshots of this board style: paste
-                one of any position.
-                {recognition.seenFromBlack && ' (The starting position was seen from Black\'s side.)'}
+                {t('image.calibrated')}
+                {recognition.seenFromBlack && ` ${t('image.calibratedFromBlack')}`}
               </span>
             </div>
           )}
@@ -277,14 +290,12 @@ export default function ImageImport({
           {!localError && recognition.status === 'done' && recognition.isValid && (
             <div className="image-result">
               <span>
-                ✅ Position recognized. <strong>{sideToMove} to move</strong>
-                {recognition.turnDetected
-                  ? ' (shown in the image).'
-                  : ' — a guess, the image does not show it.'}
+                {t('image.recognized')} <strong>{sideToMove}</strong>{' '}
+                {recognition.turnDetected ? t('image.turnShown') : t('image.turnGuessed')}
                 {recognition.seenFromBlack && seenFromBlackNote}
               </span>
               <button type="button" className="preset-btn" onClick={onEditInEditor}>
-                🧩 Fix in Board Editor
+                {t('image.fixInEditor')}
               </button>
               {rotateButton}
             </div>
@@ -293,12 +304,11 @@ export default function ImageImport({
           {!localError && recognition.status === 'done' && !recognition.isValid && (
             <div className="editor-warn-box image-result">
               <span>
-                ⚠️ The recognized position is not legal, probably a misread piece. Fix it in
-                the Board Editor before analysis.
+                {t('image.illegal')}
                 {recognition.seenFromBlack && seenFromBlackNote}
               </span>
               <button type="button" className="preset-btn" onClick={onEditInEditor}>
-                🧩 Fix in Board Editor
+                {t('image.fixInEditor')}
               </button>
               {rotateButton}
             </div>
@@ -311,14 +321,15 @@ export default function ImageImport({
                 className="preset-btn"
                 onClick={handleRetry}
                 disabled={waitSeconds > 0}
-                title="Send the same image again, to the model chosen above"
+                title={t('image.retryHint')}
               >
-                {recognition.status === 'done' ? '🔁 Read Again' : '🔁 Try Again'}
+                {recognition.status === 'done' ? t('image.readAgain') : t('image.tryAgain')}
               </button>
               {waitSeconds > 0 && (
                 <span className="gemini-wait" role="timer">
-                  ⏳ Gemini asked to wait {formatCountdown(waitSeconds)}
-                  {modelPicker ? ' — or choose another model above' : ' — or choose another model at the top'}
+                  {t(modelPicker ? 'image.waitAbove' : 'image.waitTop', {
+                    time: formatCountdown(waitSeconds),
+                  })}
                 </span>
               )}
             </div>

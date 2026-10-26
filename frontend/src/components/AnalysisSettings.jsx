@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useT } from '../i18n';
 
 /**
  * Stockfish's depth and number of lines, shown on every tab.
@@ -9,6 +10,7 @@ import React, { useEffect, useState } from 'react';
  * applyHint is Apply's tooltip, as Apply does different things per tab.
  */
 export default function AnalysisSettings({ depth, multipv, onApply, loading, applyHint }) {
+  const t = useT();
   const [draftDepth, setDraftDepth] = useState(depth);
   const [draftMultipv, setDraftMultipv] = useState(multipv);
   useEffect(() => setDraftDepth(depth), [depth]);
@@ -21,7 +23,7 @@ export default function AnalysisSettings({ depth, multipv, onApply, loading, app
 
       <div className="control-item">
         <label htmlFor="depth-select" className="control-label">
-          Depth: <strong>{draftDepth}</strong>
+          {t('settings.depth')} <strong>{draftDepth}</strong>
         </label>
         <input
           id="depth-select"
@@ -37,7 +39,7 @@ export default function AnalysisSettings({ depth, multipv, onApply, loading, app
 
       <div className="control-item">
         <label htmlFor="multipv-select" className="control-label">
-          Lines: <strong>{draftMultipv}</strong>
+          {t('settings.lines')} <strong>{draftMultipv}</strong>
         </label>
         <input
           id="multipv-select"
@@ -59,7 +61,7 @@ export default function AnalysisSettings({ depth, multipv, onApply, loading, app
           disabled={loading}
           title={applyHint}
         >
-          ✓ Apply
+          {t('settings.apply')}
         </button>
       )}
     </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../i18n';
 
 /**
  * Dropdown of Gemini models. '' stands for the server's default model.
@@ -17,9 +18,10 @@ function ModelPicker({
   onChange,
   extraOptions = [],
   label = '🤖 Gemini',
-  ariaLabel = 'Gemini model',
+  ariaLabel,
   className = '',
 }) {
+  const t = useT();
   // A saved choice stays listed even before the list arrives.
   const extraValues = extraOptions.map((option) => option.value);
   const options = [...new Set([...(value ? [value] : []), ...models])].filter(
@@ -27,18 +29,23 @@ function ModelPicker({
   );
 
   return (
-    <label
-      className={`model-picker ${className}`.trim()}
-      title="Gemini model for the commentary and for reading images"
-    >
+    <label className={`model-picker ${className}`.trim()} title={t('modelPicker.hint')}>
       {label && <span className="model-picker-label">{label}</span>}
-      <select aria-label={ariaLabel} value={value} onChange={(e) => onChange(e.target.value)}>
+      <select
+        aria-label={ariaLabel || t('modelPicker.aria')}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
         {extraOptions.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
-        <option value="">{defaultModel ? `Default (${defaultModel})` : 'Default model'}</option>
+        <option value="">
+          {defaultModel
+            ? t('modelPicker.default', { model: defaultModel })
+            : t('modelPicker.defaultPlain')}
+        </option>
         {options.map((model) => (
           <option key={model} value={model}>
             {model}

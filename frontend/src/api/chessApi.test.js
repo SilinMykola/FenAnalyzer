@@ -182,6 +182,18 @@ describe('getAiCommentary', () => {
   });
 });
 
+describe('getAiCommentary language', () => {
+  it('sends the language Gemini should answer in, or none', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ success: true }));
+
+    await getAiCommentary({ fen: 'x', turn: 'white', score: '+0.1', best_move_san: 'e4', language: 'de' });
+    await getAiCommentary({ fen: 'x', turn: 'white', score: '+0.1', best_move_san: 'e4' });
+
+    expect(sentBody(0).language).toBe('de');
+    expect(sentBody(1)).not.toHaveProperty('language');
+  });
+});
+
 describe('recognizeImage', () => {
   const request = { image_base64: 'aGVsbG8=', mime_type: 'image/png' };
 

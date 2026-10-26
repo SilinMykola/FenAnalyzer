@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../i18n';
 import { moveLabels } from '../utils/moveLine';
 
 /**
@@ -9,6 +10,7 @@ import { moveLabels } from '../utils/moveLine';
  * line: { startFen, moves: [{ san, fen }], index } (see utils/moveLine)
  */
 export default function MoveLine({ line, onGoTo }) {
+  const t = useT();
   if (line.moves.length === 0) return null;
 
   const labels = moveLabels(line);
@@ -16,16 +18,16 @@ export default function MoveLine({ line, onGoTo }) {
   const atEnd = line.index >= line.moves.length - 1;
 
   return (
-    <div className="move-line" aria-label="Your moves">
+    <div className="move-line" aria-label={t('moveLine.title')}>
       <div className="move-line-header">
-        <span className="move-line-title">Your moves</span>
+        <span className="move-line-title">{t('moveLine.title')}</span>
         <div className="move-line-nav">
           <button
             type="button"
             className="btn-vpb"
             onClick={() => onGoTo(-1)}
             disabled={atStart}
-            title="Back to the loaded position"
+            title={t('moveLine.first')}
           >
             ⏮
           </button>
@@ -34,7 +36,7 @@ export default function MoveLine({ line, onGoTo }) {
             className="btn-vpb"
             onClick={() => onGoTo(line.index - 1)}
             disabled={atStart}
-            title="Back one move"
+            title={t('moveLine.prev')}
           >
             ◀
           </button>
@@ -43,7 +45,7 @@ export default function MoveLine({ line, onGoTo }) {
             className="btn-vpb"
             onClick={() => onGoTo(line.index + 1)}
             disabled={atEnd}
-            title="Forward one move"
+            title={t('moveLine.next')}
           >
             ▶
           </button>
@@ -52,7 +54,7 @@ export default function MoveLine({ line, onGoTo }) {
             className="btn-vpb"
             onClick={() => onGoTo(line.moves.length - 1)}
             disabled={atEnd}
-            title="To your last move"
+            title={t('moveLine.last')}
           >
             ⏭
           </button>
@@ -66,7 +68,7 @@ export default function MoveLine({ line, onGoTo }) {
           aria-current={atStart ? 'step' : undefined}
           onClick={() => onGoTo(-1)}
         >
-          Start
+          {t('moveLine.start')}
         </button>
         {labels.map((label, i) => (
           <button
@@ -82,7 +84,7 @@ export default function MoveLine({ line, onGoTo }) {
       </div>
 
       <div className="move-line-start">
-        Start: <code>{line.startFen}</code>
+        {t('moveLine.startFen')} <code>{line.startFen}</code>
       </div>
     </div>
   );

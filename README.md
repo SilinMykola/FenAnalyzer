@@ -30,6 +30,12 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **Verbal Verdicts** — human-readable position assessments: *"Decisive advantage for White"*, *"Forced mate in 3"*, *"Even position"*
 - **Tactical Explanations** — plain-English move descriptions: *"Knight captures Pawn on e5 & delivers check"*
 
+### 🌐 Languages
+- The interface speaks **English, German, Russian and Ukrainian**; pick one in the **🌐** list in the header. The first visit opens in the browser's language when it is one of these four, otherwise in English, and the choice is remembered in the browser
+- **Gemini answers in the chosen language** — the Grandmaster commentary and the **💡 Why?** explanation; moves and squares stay in standard algebraic notation (`e4`, `Nf3`)
+- What comes from the backend stays in English: Stockfish's verdicts and move explanations (*"Even position"*, *"Queen moves to d4"*) and the error messages of the server and of Gemini
+- The texts live in `frontend/src/i18n/messages/`, one file per part of the app with all four languages side by side; a test checks that every text exists in every language with the same placeholders
+
 ### 🤖 Grandmaster AI Commentary (Google Gemini)
 - One-click **natural language coaching** from Google Gemini 3.8 Flash
 - Explains *why* the best engine move is strongest, outlines the strategic plan, and highlights key threats
@@ -284,11 +290,14 @@ Generates grandmaster coaching commentary via Google Gemini.
   "verbal_verdict": "Even position (balanced game)",
   "model": "gemini-2.5-flash-lite",
   "focus": "evaluation",
-  "lines": [{ "score": "+0.37", "pv_san": ["d4", "Nf6", "c4"] }]
+  "lines": [{ "score": "+0.37", "pv_san": ["d4", "Nf6", "c4"] }],
+  "language": "uk"
 }
 ```
 `focus` is `"move"` (the default: why the best move is best) or `"evaluation"` (why the position
 is rated so); `lines` are Stockfish's top lines, up to 5, sent along as evidence for an evaluation.
+`language` is the language Gemini writes in: `en` (the default), `de`, `ru` or `uk`; any other is
+rejected with `422`.
 `model` is optional; without it the server's default model is asked. Only plain model names
 (lowercase letters, digits, `.` and `-`) are accepted, anything else is rejected with `422`.
 
@@ -414,9 +423,13 @@ FenAnalyzer/
 │       │   ├── AnalysisSettings.jsx # Depth & MultiPV sliders with Apply, on every tab
 │       │   ├── ImageImport.jsx     # Paste / upload / drop a board image for recognition
 │       │   ├── ModelPicker.jsx     # Gemini model dropdown (header and next to a countdown)
+│       │   ├── LanguagePicker.jsx  # Interface language in the header
 │       │   ├── AnalysisPanel.jsx   # Evaluation · WDL bar · MultiPV lines · Gemini AI
 │       │   ├── PgnViewer.jsx       # PGN import · move-by-move navigation · keyboard support
 │       │   └── MoveLine.jsx        # Your moves since a loaded position · step back and forth
+│       ├── i18n/
+│       │   ├── index.jsx           # Language detection, provider, t() with English fallback
+│       │   └── messages/           # The texts, one file per part, in en · de · ru · uk
 │       ├── hooks/
 │       │   ├── useTheme.js         # Dark/light theme state, persisted in localStorage
 │       │   └── useGeminiCooldown.js # Per-model pause and countdown after a Gemini refusal

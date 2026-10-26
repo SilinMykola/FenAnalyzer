@@ -1,26 +1,28 @@
 import React from 'react';
+import { useT } from '../i18n';
 
 const PRESETS = [
   {
-    name: 'Starting Position',
+    nameKey: 'fen.preset.start',
     fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
   },
   {
-    name: 'Kasparov Immortal (1999)',
+    nameKey: 'fen.preset.kasparov',
     fen: 'b2r3r/k4p1p/p2q1np1/NppP4/3p1Q2/P4PPB/1PP4P/1K1RR3 w - - 0 1',
   },
   {
-    name: 'Tactical Puzzle (Mate in 2)',
+    nameKey: 'fen.preset.puzzle',
     fen: 'r1b2rk1/2p2ppp/p7/1p6/3P3q/1BP2QP1/PP3P1b/RNB1R2K b - - 0 1',
   },
   {
-    name: 'Endgame (Rook + Pawn)',
+    nameKey: 'fen.preset.endgame',
     fen: '8/8/5k2/R7/4P3/8/5K2/8 w - - 0 1',
   },
 ];
 
 // The depth and number of lines are set in AnalysisSettings, on every tab.
 export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
+  const t = useT();
   const handlePasteClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -43,7 +45,7 @@ export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
       <form onSubmit={handleSubmit} className="fen-form">
         <div className="form-group">
           <label htmlFor="fen-input" className="form-label">
-            FEN Position
+            {t('fen.label')}
           </label>
           <div className="pgn-textarea-wrapper">
             <input
@@ -52,7 +54,7 @@ export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
               className="text-input"
               value={fen}
               onChange={(e) => onFenChange(e.target.value)}
-              placeholder="Paste FEN here (e.g. rnbqkbnr/pppppppp/...)"
+              placeholder={t('fen.placeholder')}
               disabled={loading}
               required
             />
@@ -61,10 +63,10 @@ export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
                 type="button"
                 className="btn-clear-inside"
                 onClick={() => onFenChange('')}
-                title="Clear FEN"
+                title={t('fen.clearHint')}
                 disabled={loading}
               >
-                ✕ Clear
+                {t('fen.clearInside')}
               </button>
             )}
           </div>
@@ -77,10 +79,10 @@ export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
               type="button"
               className="preset-btn"
               onClick={handlePasteClipboard}
-              title="Paste FEN from clipboard"
+              title={t('fen.pasteHint')}
               disabled={loading}
             >
-              📋 Paste from Clipboard
+              {t('fen.paste')}
             </button>
             {fen && (
               <button
@@ -89,10 +91,10 @@ export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
                 onClick={() => onFenChange('')}
                 disabled={loading}
               >
-                Clear FEN
+                {t('fen.clear')}
               </button>
             )}
-            <span className="presets-label" style={{ marginLeft: '6px' }}>Examples:</span>
+            <span className="presets-label" style={{ marginLeft: '6px' }}>{t('fen.examples')}</span>
             {PRESETS.map((p, index) => (
               <button
                 key={index}
@@ -101,7 +103,7 @@ export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
                 onClick={() => onFenChange(p.fen)}
                 disabled={loading}
               >
-                {p.name}
+                {t(p.nameKey)}
               </button>
             ))}
           </div>
@@ -116,10 +118,10 @@ export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
             {loading ? (
               <>
                 <span className="spinner"></span>
-                Analyzing...
+                {t('fen.analyzing')}
               </>
             ) : (
-              '⚡ Analyze with Stockfish'
+              t('fen.analyze')
             )}
           </button>
         </div>
