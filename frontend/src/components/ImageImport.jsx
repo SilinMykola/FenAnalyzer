@@ -24,6 +24,10 @@ function withElements(text, elements) {
  *              Again stays locked until it runs out.
  * modelPicker: props for a ModelPicker always shown in the box: another model
  *              may read a picture better, and has its own quota.
+ * pendingImage: an image pasted on another tab, read as soon as the box shows;
+ *              onPendingImageTaken is called once it is taken.
+ * onUseLocalReader: switches to the local reader; given while Gemini reads, so
+ *              the faster way is seen next to the model list.
  * localReader: { active, needsCalibration, calibrated, onRecalibrate,
  *              onCancelCalibration } when the local reader is chosen. While it
  *              needs calibration, the next image is taken as the starting
@@ -37,6 +41,9 @@ export default function ImageImport({
   onRotate,
   waitSeconds = 0,
   modelPicker,
+  pendingImage,
+  onPendingImageTaken,
+  onUseLocalReader,
   localReader,
 }) {
   const t = useT();
@@ -73,6 +80,14 @@ export default function ImageImport({
 
   // Free a thumbnail once it is replaced or the component goes away.
   useEffect(() => () => previewUrl && URL.revokeObjectURL(previewUrl), [previewUrl]);
+
+  useEffect(() => {
+    if (!pendingImage) return;
+    onPendingImageTaken();
+    handleImage(pendingImage);
+    // Only a new pending image matters, not the handlers changing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingImage]);
 
   // Ctrl+V / ⌘V anywhere on the page. Text pastes (a FEN into the box)
   // carry no image file and are left alone.
@@ -264,6 +279,23 @@ export default function ImageImport({
                   {t('image.recalibrate')}
                 </button>
               )}
+            </div>
+          )}
+
+          {/* On a line of its own: Recalibrate takes the place beside the
+              model list once it is pressed, and a second click must not
+              land on it. */}
+          {onUseLocalReader && (
+            <div className="presets-buttons">
+              <button
+                type="button"
+                className="preset-btn"
+                onClick={onUseLocalReader}
+                disabled={recognizing}
+                title={t('image.useLocalHint')}
+              >
+                {t('image.useLocal')}
+              </button>
             </div>
           )}
 

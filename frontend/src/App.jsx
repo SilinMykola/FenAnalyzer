@@ -22,6 +22,7 @@ import {
   recognizeImage,
 } from './api/chessApi';
 import { readImageAsBase64 } from './utils/imageFile';
+import { classifyPastedText } from './utils/pastedText';
 import { isChess960Pgn, withStandardCastling, withStandardCastlingPgn } from './utils/pgn';
 import { addMove, goTo, shownFen, startLine } from './utils/moveLine';
 import { getPositionError, rotateFen } from './utils/editorFen';
@@ -145,6 +146,8 @@ function AppContent() {
   const [localCalibrated, setLocalCalibrated] = useState(null);
   // The user asked to calibrate again, from a new screenshot.
   const [recalibrating, setRecalibrating] = useState(false);
+  // A screenshot pasted on the PGN tab, handed to the image box on the FEN tab.
+  const [pendingImage, setPendingImage] = useState(null);
   const needsCalibration = readsLocally && (recalibrating || localCalibrated === false);
 
   const refreshLocalReaderStatus = useCallback(async () => {
@@ -464,20 +467,21 @@ function AppContent() {
   };
 
   // PGN Import & Parsing. chess.js has no Chess960, so those games are
-  // replayed by the backend, castling included.
+  // replayed by the backend, castling included. Says whether it loaded.
   const handleLoadPgn = async (pgnString) => {
     if (isChess960Pgn(pgnString)) {
       try {
         const res = await parsePgn(pgnString);
         if (!res.success) {
           setError(res.error || t('app.error.pgn'));
-          return;
+          return false;
         }
         showLoadedGame(res.headers, res.moves, res.fens, res.chess960);
+        return true;
       } catch (err) {
         setError(t('app.error.pgnWith', { message: err.message }));
+        return false;
       }
-      return;
     }
 
     try {
@@ -496,8 +500,10 @@ function AppContent() {
         fens.push(replayGame.fen());
       }
       showLoadedGame(headers, history, fens, false);
+      return true;
     } catch (err) {
       setError(t('app.error.pgnWith', { message: err.message }));
+      return false;
     }
   };
 
@@ -717,6 +723,53 @@ function AppContent() {
     }
   };
 
+  // A game pasted where a FEN goes, or onto the page, opens on the PGN tab.
+  // It goes into the PGN box only once it loads, so a failed paste does not
+  // overwrite what the box holds.
+  const openPastedPgn = async (pgnString) => {
+    setActiveTab('pgn');
+    if (await handleLoadPgn(pgnString)) setPgnText(pgnString);
+  };
+
+  // ⌘V / Ctrl+V anywhere on the page loads a pasted PGN or FEN at once, on
+  // the FEN and PGN tabs: the paste event needs no clipboard permission,
+  // which some browsers (Vivaldi) refuse to the Paste buttons. A paste into
+  // a text field stays in the field. An image goes to the image box, on the
+  // FEN tab. The board editor is left alone, not to lose its setup.
+  useEffect(() => {
+    const handlePaste = (e) => {
+      if (activeTab === 'editor') return;
+      if (e.target?.isContentEditable || e.target?.closest?.('input, textarea, select')) return;
+      const image = [...(e.clipboardData?.files || [])].find((f) => f.type.startsWith('image/'));
+      if (image) {
+        // On the FEN tab the image box takes it itself.
+        if (activeTab === 'fen') return;
+        e.preventDefault();
+        setPendingImage(image);
+        setActiveTab('fen');
+        return;
+      }
+      const text = e.clipboardData?.getData('text/plain');
+      if (!text?.trim()) return;
+      e.preventDefault();
+
+      const pasted = classifyPastedText(text);
+      if (!pasted) {
+        setError(t('app.error.pasteUnknown'));
+      } else if (pasted.kind === 'pgn') {
+        openPastedPgn(pasted.text);
+      } else {
+        setActiveTab('fen');
+        handleFenChange(pasted.text);
+        triggerAnalysis(pasted.text);
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+    // No dependency list: re-subscribe after every render so the handler
+    // always sees the current state and handlers.
+  });
+
   // Keyboard navigation: through the game on the PGN tab, through the
   // user's own moves on the FEN tab.
   useEffect(() => {
@@ -817,17 +870,21 @@ function AppContent() {
 
           <ModelPicker {...geminiModelPicker} />
 
-          <LanguagePicker />
+          {/* Language and theme wrap onto a new line together */}
+          <div className="header-prefs">
+            <LanguagePicker />
 
-          <button
-            type="button"
-            className="theme-toggle"
-            onClick={toggleTheme}
-            title={theme === 'dark' ? t('app.theme.toLight') : t('app.theme.toDark')}
-            aria-label={theme === 'dark' ? t('app.theme.toLight') : t('app.theme.toDark')}
-          >
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? t('app.theme.toLight') : t('app.theme.toDark')}
+              aria-label={theme === 'dark' ? t('app.theme.toLight') : t('app.theme.toDark')}
+            >
+              <span aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
+              {theme === 'dark' ? t('app.theme.light') : t('app.theme.dark')}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -867,6 +924,7 @@ function AppContent() {
                   <FenInput
                     fen={fenInput}
                     onFenChange={handleFenChange}
+                    onPgn={openPastedPgn}
                     onAnalyze={() => triggerAnalysis(fen)}
                     loading={loading}
                   />
@@ -878,6 +936,9 @@ function AppContent() {
                     onRotate={handleRotateRecognized}
                     waitSeconds={readsLocally ? 0 : geminiWait}
                     modelPicker={imageModelPicker}
+                    pendingImage={pendingImage}
+                    onPendingImageTaken={() => setPendingImage(null)}
+                    onUseLocalReader={readsLocally ? undefined : () => handleSelectImageReader(LOCAL_READER)}
                     localReader={
                       readsLocally
                         ? {

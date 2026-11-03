@@ -2,6 +2,7 @@
 // Move numbers, moves and the game's own PGN headers are data and stay as they are.
 export default {
   en: {
+    'pgn.clipboardDenied': 'The browser did not let the page read the clipboard. Press ⌘V / Ctrl+V anywhere on the page instead, or allow clipboard access for this site.',
     'pgn.title': 'PGN Game Review',
     'pgn.versus': 'vs',
     'pgn.clearGame': '🗑️ Clear Game',
@@ -33,6 +34,7 @@ export default {
     'pgn.draw': '½–½ Draw',
   },
   de: {
+    'pgn.clipboardDenied': 'Der Browser hat der Seite den Zugriff auf die Zwischenablage verweigert. Drücken Sie stattdessen ⌘V / Strg+V an einer beliebigen Stelle der Seite oder erlauben Sie dieser Website den Zugriff auf die Zwischenablage.',
     'pgn.title': 'PGN-Partieanalyse',
     'pgn.versus': 'vs.',
     'pgn.clearGame': '🗑️ Partie entfernen',
@@ -64,6 +66,7 @@ export default {
     'pgn.draw': '½–½ Remis',
   },
   ru: {
+    'pgn.clipboardDenied': 'Браузер не дал странице прочитать буфер обмена. Нажмите ⌘V / Ctrl+V в любом месте страницы или разрешите этому сайту доступ к буферу обмена.',
     'pgn.title': 'Разбор партии PGN',
     'pgn.versus': '–',
     'pgn.clearGame': '🗑️ Убрать партию',
@@ -95,6 +98,7 @@ export default {
     'pgn.draw': '½–½ Ничья',
   },
   uk: {
+    'pgn.clipboardDenied': 'Браузер не дав сторінці прочитати буфер обміну. Натисніть ⌘V / Ctrl+V будь-де на сторінці або дозвольте цьому сайту доступ до буфера обміну.',
     'pgn.title': 'Розбір партії PGN',
     'pgn.versus': '–',
     'pgn.clearGame': '🗑️ Прибрати партію',

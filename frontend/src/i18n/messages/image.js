@@ -19,6 +19,9 @@ export default {
     'image.clear': 'Clear Image',
     'image.model': 'Model',
     'image.modelAria': 'Switch Gemini model for reading images',
+    'image.useLocal': '📍 Read locally, without Gemini',
+    'image.useLocalHint':
+      'Faster: after one calibration from a screenshot of the starting position, screenshots are read on this computer in under a second',
     'image.recalibrate': '🎯 Recalibrate',
     'image.recalibrateHint':
       'Teach the local reader another board style from a screenshot of the starting position',
@@ -66,6 +69,9 @@ export default {
     'image.clear': 'Bild entfernen',
     'image.model': 'Modell',
     'image.modelAria': 'Gemini-Modell zum Lesen von Bildern wechseln',
+    'image.useLocal': '📍 Lokal erkennen, ohne Gemini',
+    'image.useLocalHint':
+      'Schneller: Nach einer Kalibrierung mit einem Screenshot der Grundstellung werden Screenshots auf diesem Computer in unter einer Sekunde erkannt',
     'image.recalibrate': '🎯 Neu kalibrieren',
     'image.recalibrateHint':
       'Der lokalen Erkennung anhand eines Screenshots der Grundstellung einen anderen Brettstil beibringen',
@@ -114,6 +120,9 @@ export default {
     'image.clear': 'Убрать картинку',
     'image.model': 'Модель',
     'image.modelAria': 'Сменить модель Gemini для чтения картинок',
+    'image.useLocal': '📍 Распознавать локально, без Gemini',
+    'image.useLocalHint':
+      'Быстрее: после одной калибровки по скриншоту начальной позиции скриншоты читаются на этом компьютере меньше чем за секунду',
     'image.recalibrate': '🎯 Перекалибровать',
     'image.recalibrateHint':
       'Научить локальное распознавание другому стилю доски по скриншоту начальной позиции',
@@ -161,6 +170,9 @@ export default {
     'image.clear': 'Прибрати зображення',
     'image.model': 'Модель',
     'image.modelAria': 'Змінити модель Gemini для читання зображень',
+    'image.useLocal': '📍 Розпізнавати локально, без Gemini',
+    'image.useLocalHint':
+      'Швидше: після одного калібрування за знімком початкової позиції знімки читаються на цьому комп’ютері менш ніж за секунду',
     'image.recalibrate': '🎯 Перекалібрувати',
     'image.recalibrateHint':
       'Навчити локальне розпізнавання іншого стилю дошки за знімком початкової позиції',

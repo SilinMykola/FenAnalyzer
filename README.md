@@ -47,6 +47,14 @@ interactively, build custom positions, and get natural language grandmaster coac
 - When Google names a wait, the backend does not retry before it ends: that would only be refused again
 - API key configurable via `backend/.env` or directly in the UI — no backend restart needed
 
+### ⌨️ Paste Anything with ⌘V / Ctrl+V
+- **One key instead of four clicks** — copy a game's PGN or a FEN anywhere, come back to the app and press **⌘V / Ctrl+V** anywhere on the page, on the FEN or the PGN tab. A PGN opens on the PGN tab at its final position, a FEN goes on the board, and either is analyzed at once; a screenshot of a board is read by the image box, and one pasted on the PGN tab takes you to the FEN tab to be read there
+- The board editor ignores ⌘V / Ctrl+V, so a setup in progress is not lost
+- A bare piece placement (`8/8/5k2/R7/4P3/8/5K2/8`) is taken as White to move; a move list must start with move 1 (`1. e4`, `1... e5`), so a version number or a numbered list is not mistaken for a game. A game that does not load leaves the PGN box as it was
+- A paste into a text field (the PGN box, the API key) stays in that field, and text that is neither a FEN nor a PGN is reported instead of guessed at
+- The FEN box takes a PGN too, typed in by ⌘V / Ctrl+V or its Paste button: the game opens on the PGN tab
+- The page's paste event needs no clipboard permission. The **📋 Paste from Clipboard** buttons do, and some browsers (Vivaldi) refuse it without asking; the buttons then say so and point to ⌘V / Ctrl+V or to allowing clipboard access for the site
+
 ### 📋 PGN Game Explorer
 - Import and parse games from **Chess.com** or **Lichess** (including custom starting FEN tournaments)
 - Once loaded, the board shows the final position with the side to move at the bottom
@@ -73,7 +81,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **The model choice is remembered** in the browser and stays after a successful read and a page reload; the header, the image box and the Grandmaster block all show and change the same choice
 - **Clear Image** removes the pasted picture together with its error or result; the board stays as it is
 - PNG, JPEG or WebP up to 10 MB; needs a Gemini API key (the same one as the commentary)
-- **📍 Local reader — no Gemini, no quota, no internet.** Choose **📍 Local (calibrated board)** in the image box's model list. The first time, paste a screenshot of the **starting position** from the site your screenshots come from (either side at the bottom): the reader cuts the 12 pieces and the two square colours out of it and checks that they read back as the starting position. From then on every screenshot in that style is read on your own computer in under a second, with the same answer every time. Square by square, the piece is told apart from the square by colour and compared with the calibrated pieces, so the highlighted last move does not get in the way — it tells whose move it is: the side that did not just move. The rank numbers beside the board tell whether it is seen from Black's side; without them the pawns do. A square that matches no piece clearly is named in the error (*"Could not tell which piece stands on d5"*) instead of being guessed. **🎯 Recalibrate** takes a new starting position, e.g. after changing the board theme on the site; a failed calibration keeps the old one. The calibration is kept in `backend/calibration/` (not in git)
+- **📍 Local reader — no Gemini, no quota, no internet.** Press **📍 Read locally, without Gemini** next to the image box's model list (shown while Gemini reads images), or choose **📍 Local (calibrated board)** in that list. The first time, paste a screenshot of the **starting position** from the site your screenshots come from (either side at the bottom): the reader cuts the 12 pieces and the two square colours out of it and checks that they read back as the starting position. From then on every screenshot in that style is read on your own computer in under a second, with the same answer every time. Square by square, the piece is told apart from the square by colour and compared with the calibrated pieces, so the highlighted last move does not get in the way — it tells whose move it is: the side that did not just move. The rank numbers beside the board tell whether it is seen from Black's side; without them the pawns do. A square that matches no piece clearly is named in the error (*"Could not tell which piece stands on d5"*) instead of being guessed. **🎯 Recalibrate** takes a new starting position, e.g. after changing the board theme on the site; a failed calibration keeps the old one. The calibration is kept in `backend/calibration/` (not in git)
 
 ### 🧩 Board Editor
 - Dedicated **Board Editor tab** for building any custom chess position from scratch
@@ -90,7 +98,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - **Send to Stockfish** — instantly pass the custom position to the engine with one button; it opens on the analysis board with the side to move at the bottom, ready to be played on
 
 ### 🌗 Dark & Light Themes
-- **Theme toggle** (☀️ / 🌙) in the header next to the Stockfish status switches the whole site
+- **Theme button** next to the language picker says in words which theme it switches to (☀️ Light theme / 🌙 Dark theme) and switches the whole site; the two stay together when the header wraps
 - The choice is remembered in the browser; on a first visit the theme follows the operating system setting
 - Built on CSS custom properties: every colour in `index.css` is a theme token, redefined under `[data-theme='light']`
 

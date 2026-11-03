@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useT } from '../i18n';
+import { classifyPastedText } from '../utils/pastedText';
 
 const PRESETS = [
   {
@@ -21,17 +22,41 @@ const PRESETS = [
 ];
 
 // The depth and number of lines are set in AnalysisSettings, on every tab.
-export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
+// A PGN pasted here goes to onPgn instead, so one field takes either.
+export default function FenInput({ fen, onFenChange, onPgn, onAnalyze, loading }) {
   const t = useT();
+  // Some browsers (Vivaldi) refuse the page the clipboard without asking;
+  // ⌘V / Ctrl+V on the page still works, so the user is pointed to it.
+  const [clipboardDenied, setClipboardDenied] = useState(false);
+  // Gone once a paste on the page has worked around it.
+  useEffect(() => {
+    if (!clipboardDenied) return undefined;
+    const forget = () => setClipboardDenied(false);
+    window.addEventListener('paste', forget);
+    return () => window.removeEventListener('paste', forget);
+  }, [clipboardDenied]);
+
   const handlePasteClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (text && text.trim()) {
+      setClipboardDenied(false);
+      if (classifyPastedText(text)?.kind === 'pgn') {
+        onPgn(text.trim());
+      } else if (text && text.trim()) {
         onFenChange(text.trim());
       }
-    } catch (err) {
-      console.warn('Clipboard read permission denied:', err);
+    } catch {
+      setClipboardDenied(true);
     }
+  };
+
+  // A single-line field would fold a game's lines into one, so a PGN never
+  // lands in it.
+  const handleFieldPaste = (e) => {
+    const text = e.clipboardData?.getData('text/plain');
+    if (classifyPastedText(text)?.kind !== 'pgn') return;
+    e.preventDefault();
+    onPgn(text.trim());
   };
 
   const handleSubmit = (e) => {
@@ -54,6 +79,7 @@ export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
               className="text-input"
               value={fen}
               onChange={(e) => onFenChange(e.target.value)}
+              onPaste={handleFieldPaste}
               placeholder={t('fen.placeholder')}
               disabled={loading}
               required
@@ -107,6 +133,7 @@ export default function FenInput({ fen, onFenChange, onAnalyze, loading }) {
               </button>
             ))}
           </div>
+          {clipboardDenied && <div className="image-error">⚠️ {t('fen.clipboardDenied')}</div>}
         </div>
 
         <div className="controls-row">

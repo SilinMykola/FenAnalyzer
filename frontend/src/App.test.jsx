@@ -258,7 +258,7 @@ describe('App playing moves', () => {
 
   it('promotes a pawn to the piece chosen in the promotion dialog', async () => {
     await renderApp();
-    fireEvent.change(screen.getByLabelText('FEN Position'), {
+    fireEvent.change(screen.getByLabelText('FEN Position or PGN'), {
       target: { value: '8/4P3/8/8/8/8/k7/4K3 w - - 0 1' },
     });
 
@@ -274,7 +274,7 @@ describe('App playing moves', () => {
 
   it('promotes a Black pawn to the chosen piece too', async () => {
     await renderApp();
-    fireEvent.change(screen.getByLabelText('FEN Position'), {
+    fireEvent.change(screen.getByLabelText('FEN Position or PGN'), {
       target: { value: '4k3/8/8/8/8/8/p7/4K3 b - - 0 1' },
     });
 
@@ -335,7 +335,7 @@ describe('App FEN tab', () => {
 
     await user.click(screen.getByRole('button', { name: /Reset Board/ }));
 
-    expect(screen.getByLabelText('FEN Position')).toHaveValue('');
+    expect(screen.getByLabelText('FEN Position or PGN')).toHaveValue('');
     expect(chessboardProps().position).toBe(START_FEN);
     // Nothing to analyze until a new FEN is entered.
     expect(screen.getByRole('button', { name: /Analyze with Stockfish/ })).toBeDisabled();
@@ -348,7 +348,7 @@ describe('App FEN tab', () => {
     await user.click(screen.getByRole('button', { name: /Reset Board/ }));
 
     const fen = '4k3/8/8/8/8/8/8/R3K3 w - - 0 1';
-    await user.type(screen.getByLabelText('FEN Position'), fen);
+    await user.type(screen.getByLabelText('FEN Position or PGN'), fen);
     await user.click(screen.getByRole('button', { name: /Analyze with Stockfish/ }));
 
     expect(chessboardProps().position).toBe(fen);
@@ -364,7 +364,7 @@ describe('App FEN tab', () => {
       chessboardProps().onPieceDrop('e2', 'e4', 'wP');
     });
 
-    expect(screen.getByLabelText('FEN Position')).toHaveValue(AFTER_E4);
+    expect(screen.getByLabelText('FEN Position or PGN')).toHaveValue(AFTER_E4);
   });
 
   it('does not analyze while a slider is moved', async () => {
@@ -660,7 +660,7 @@ describe('App board editor tab', () => {
 
     // Back on the FEN tab, with the edited position on the board.
     const editedFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1';
-    expect(screen.getByLabelText('FEN Position')).toHaveValue(editedFen);
+    expect(screen.getByLabelText('FEN Position or PGN')).toHaveValue(editedFen);
     await waitFor(() => expect(lastAnalyzedFen()).toBe(editedFen));
   });
 
@@ -693,7 +693,7 @@ describe('App board editor tab', () => {
     const user = userEvent.setup();
     await renderApp();
     // The board was turned for Black by an earlier position.
-    fireEvent.change(screen.getByLabelText('FEN Position'), {
+    fireEvent.change(screen.getByLabelText('FEN Position or PGN'), {
       target: { value: '4k3/8/8/8/8/8/8/R3K3 b - - 0 1' },
     });
     expect(chessboardProps().boardOrientation).toBe('black');
@@ -972,7 +972,7 @@ describe('App position from an image', () => {
       model: '',
     });
     expect(chessboardProps().position).toBe(RECOGNIZED);
-    expect(screen.getByLabelText('FEN Position')).toHaveValue(RECOGNIZED);
+    expect(screen.getByLabelText('FEN Position or PGN')).toHaveValue(RECOGNIZED);
     await waitFor(() => expect(lastAnalyzedFen()).toBe(RECOGNIZED));
   });
 
@@ -1130,6 +1130,20 @@ describe('App local image reader', () => {
     expect(within(headerPicker).queryByRole('option', { name: /Local/ })).not.toBeInTheDocument();
   });
 
+  it('offers the local reader with a button while Gemini reads images', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    const useLocal = screen.getByRole('button', { name: /Read locally, without Gemini/ });
+    // Not beside the model list, where Recalibrate shows up after the click.
+    expect(useLocal.closest('.image-model-row')).toBeNull();
+    await user.click(useLocal);
+
+    expect(imagePicker()).toHaveValue('local');
+    expect(calibrationNote()).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Read locally/ })).not.toBeInTheDocument();
+  });
+
   it('calibrates from the first image, then reads the next one locally', async () => {
     const user = userEvent.setup();
     vi.mocked(calibrateLocalReader).mockResolvedValue({ success: true, seen_from_black: false });
@@ -1245,6 +1259,118 @@ describe('App local image reader', () => {
   });
 });
 
+describe('App pasting anywhere on the page', () => {
+  // What the browser hands a paste event: text, and files for an image.
+  const pasteText = (text, target = window) =>
+    fireEvent.paste(target, { clipboardData: { files: [], getData: () => text } });
+
+  it('loads and analyzes a pasted game, from the FEN tab on the PGN tab', async () => {
+    await renderApp();
+
+    pasteText(PGN);
+
+    expect(await screen.findByText('Alice vs Bob')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'PGN Game Explorer' })).toHaveClass('active');
+    expect(chessboardProps().position).toBe(AFTER_E4_E5_NF3);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(AFTER_E4_E5_NF3));
+  });
+
+  it('puts a pasted FEN on the board and analyzes it', async () => {
+    const user = userEvent.setup();
+    const ENDGAME = '8/8/5k2/R7/4P3/8/5K2/8 w - - 0 1';
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: 'PGN Game Explorer' }));
+
+    pasteText(ENDGAME);
+
+    await waitFor(() => expect(chessboardProps().position).toBe(ENDGAME));
+    expect(screen.getByLabelText('FEN Position or PGN')).toHaveValue(ENDGAME);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(ENDGAME));
+  });
+
+  it('leaves a paste into a text field to the field', async () => {
+    await renderApp();
+    const callsBefore = analyzeFen.mock.calls.length;
+
+    pasteText('8/8/5k2/R7/4P3/8/5K2/8 w - - 0 1', screen.getByLabelText('FEN Position or PGN'));
+
+    expect(analyzeFen).toHaveBeenCalledTimes(callsBefore);
+  });
+
+  it('opens a game pasted into the FEN field on the PGN tab', async () => {
+    await renderApp();
+
+    pasteText(PGN, screen.getByLabelText('FEN Position or PGN'));
+
+    expect(await screen.findByText('Alice vs Bob')).toBeInTheDocument();
+    expect(chessboardProps().position).toBe(AFTER_E4_E5_NF3);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(AFTER_E4_E5_NF3));
+  });
+
+  it('completes a pasted bare placement, so moves on the board start from it', async () => {
+    await renderApp();
+
+    pasteText('4k3/8/8/8/8/8/8/4K3');
+
+    await waitFor(() => expect(chessboardProps().position).toBe('4k3/8/8/8/8/8/8/4K3 w - - 0 1'));
+    let accepted;
+    act(() => {
+      accepted = chessboardProps().onPieceDrop('e1', 'd2', 'wK');
+    });
+    expect(accepted).toBe(true);
+    expect(chessboardProps().position).toBe('4k3/8/8/8/8/8/3K4/8 b - - 1 1');
+  });
+
+  it('keeps the PGN box as it was when a pasted game does not load', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: 'PGN Game Explorer' }));
+    await user.click(screen.getByRole('button', { name: /Import \/ Paste PGN/ }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'my notes' } });
+
+    pasteText('1. e4 e5 2. Qxf7');
+
+    expect(await screen.findByText(/Qxf7/)).toBeInTheDocument();
+    expect(screen.getByRole('textbox')).toHaveValue('my notes');
+  });
+
+  it('leaves the board editor alone, not to lose its setup', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: /Board Editor/ }));
+
+    pasteText(PGN);
+
+    expect(screen.getByRole('button', { name: /Board Editor/ })).toHaveClass('active');
+    expect(screen.queryByText('Alice vs Bob')).not.toBeInTheDocument();
+  });
+
+  it('reads a screenshot pasted on the PGN tab in the image box on the FEN tab', async () => {
+    const user = userEvent.setup();
+    const RECOGNIZED = '4k3/8/8/8/8/8/8/4K3 w - - 0 1';
+    vi.mocked(recognizeImage).mockResolvedValue({ success: true, fen: RECOGNIZED, is_valid: true });
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: 'PGN Game Explorer' }));
+    const image = new File(['png bytes'], 'board.png', { type: 'image/png' });
+
+    fireEvent.paste(window, { clipboardData: { files: [image], getData: () => '' } });
+
+    expect(screen.getByRole('button', { name: 'FEN Analyzer' })).toHaveClass('active');
+    await waitFor(() => expect(chessboardProps().position).toBe(RECOGNIZED));
+    expect(recognizeImage).toHaveBeenCalledTimes(1);
+    expect(screen.getByAltText(/./, { selector: '.image-preview' })).toBeInTheDocument();
+  });
+
+  it('says when pasted text is neither a FEN nor a PGN', async () => {
+    await renderApp();
+
+    pasteText('hello there');
+
+    expect(await screen.findByText(/neither a FEN nor a PGN/)).toBeInTheDocument();
+    expect(chessboardProps().position).toBe(START_FEN);
+  });
+});
+
 describe('App language', () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -1301,14 +1427,14 @@ describe('App board orientation', () => {
   it('puts Black at the bottom for a pasted FEN with Black to move', async () => {
     await renderApp();
 
-    fireEvent.change(screen.getByLabelText('FEN Position'), { target: { value: BLACK_TO_MOVE } });
+    fireEvent.change(screen.getByLabelText('FEN Position or PGN'), { target: { value: BLACK_TO_MOVE } });
 
     expect(orientation()).toBe('black');
   });
 
   it('turns the board back for a FEN with White to move', async () => {
     await renderApp();
-    const fenBox = screen.getByLabelText('FEN Position');
+    const fenBox = screen.getByLabelText('FEN Position or PGN');
     fireEvent.change(fenBox, { target: { value: BLACK_TO_MOVE } });
 
     fireEvent.change(fenBox, { target: { value: WHITE_TO_MOVE } });
@@ -1318,7 +1444,7 @@ describe('App board orientation', () => {
 
   it('leaves the board alone while a FEN is only half typed', async () => {
     await renderApp();
-    const fenBox = screen.getByLabelText('FEN Position');
+    const fenBox = screen.getByLabelText('FEN Position or PGN');
     fireEvent.change(fenBox, { target: { value: BLACK_TO_MOVE } });
 
     fireEvent.change(fenBox, { target: { value: '4k3/8/8' } });
@@ -1389,7 +1515,7 @@ describe('App board orientation', () => {
   it('can still be flipped by hand after a load', async () => {
     const user = userEvent.setup();
     await renderApp();
-    fireEvent.change(screen.getByLabelText('FEN Position'), { target: { value: BLACK_TO_MOVE } });
+    fireEvent.change(screen.getByLabelText('FEN Position or PGN'), { target: { value: BLACK_TO_MOVE } });
 
     await user.click(screen.getByRole('button', { name: /Flip \(black\)/ }));
 
@@ -1399,7 +1525,7 @@ describe('App board orientation', () => {
   it('puts White back at the bottom on Reset Board', async () => {
     const user = userEvent.setup();
     await renderApp();
-    fireEvent.change(screen.getByLabelText('FEN Position'), { target: { value: BLACK_TO_MOVE } });
+    fireEvent.change(screen.getByLabelText('FEN Position or PGN'), { target: { value: BLACK_TO_MOVE } });
 
     await user.click(screen.getByRole('button', { name: /Reset Board/ }));
 
@@ -1466,7 +1592,7 @@ describe('App your moves since a loaded position', () => {
     await user.click(move('Start'));
 
     expect(chessboardProps().position).toBe(IMAGE_FEN);
-    expect(screen.getByLabelText('FEN Position')).toHaveValue(IMAGE_FEN);
+    expect(screen.getByLabelText('FEN Position or PGN')).toHaveValue(IMAGE_FEN);
     await waitFor(() => expect(lastAnalyzedFen()).toBe(IMAGE_FEN));
     // The moves stay, so the user can go forward again.
     await user.click(move('20. h3'));
@@ -1544,7 +1670,7 @@ describe('App your moves since a loaded position', () => {
     const user = userEvent.setup();
     await playTwoMoves(user);
 
-    fireEvent.change(screen.getByLabelText('FEN Position'), {
+    fireEvent.change(screen.getByLabelText('FEN Position or PGN'), {
       target: { value: '4k3/8/8/8/8/8/8/R3K3 w - - 0 1' },
     });
 
@@ -1593,7 +1719,7 @@ describe('App position read upside down', () => {
     await user.click(turnButton());
 
     expect(chessboardProps().position).toBe(RIGHT);
-    expect(screen.getByLabelText('FEN Position')).toHaveValue(RIGHT);
+    expect(screen.getByLabelText('FEN Position or PGN')).toHaveValue(RIGHT);
     await waitFor(() => expect(lastAnalyzedFen()).toBe(RIGHT));
     // Black to move, so Black stays at the bottom.
     expect(chessboardProps().boardOrientation).toBe('black');
@@ -2086,5 +2212,16 @@ describe('App theme', () => {
 
     await user.click(screen.getByRole('button', { name: 'Switch to dark theme' }));
     expect(document.documentElement.dataset.theme).toBe('dark');
+  });
+
+  it('says in words which theme its button switches to', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    const toggle = screen.getByRole('button', { name: 'Switch to light theme' });
+    expect(toggle).toHaveTextContent('Light theme');
+
+    await user.click(toggle);
+    expect(screen.getByRole('button', { name: 'Switch to dark theme' })).toHaveTextContent('Dark theme');
   });
 });

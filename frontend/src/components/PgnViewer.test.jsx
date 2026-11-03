@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Chess } from 'chess.js';
 import { describe, expect, it, vi } from 'vitest';
@@ -321,6 +321,23 @@ describe('PgnViewer import form', () => {
     await user.click(screen.getByRole('button', { name: /Paste from Clipboard/ }));
 
     expect(onPgnTextChange).not.toHaveBeenCalled();
+    expect(screen.getByText(/did not let the page read the clipboard/)).toHaveTextContent(
+      '⌘V / Ctrl+V'
+    );
+  });
+
+  it('without the clipboard API points to ⌘V / Ctrl+V, and forgets it after a paste on the page', async () => {
+    const user = userEvent.setup();
+    const clipboard = vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue(undefined);
+    renderViewer();
+    await openForm(user);
+
+    await user.click(screen.getByRole('button', { name: /Paste from Clipboard/ }));
+    expect(screen.getByText(/did not let the page read the clipboard/)).toBeInTheDocument();
+
+    fireEvent.paste(window, { clipboardData: { files: [], getData: () => '1. e4' } });
+    expect(screen.queryByText(/did not let the page read the clipboard/)).not.toBeInTheDocument();
+    clipboard.mockRestore();
   });
 });
 

@@ -74,14 +74,24 @@ export default function PgnViewer({
     setShowInput(false);
   };
 
+  // Some browsers (Vivaldi) refuse the page the clipboard without asking;
+  // ⌘V / Ctrl+V on the page still works, so the user is pointed to it.
+  const [clipboardDenied, setClipboardDenied] = useState(false);
+  // Gone once a paste on the page has worked around it.
+  useEffect(() => {
+    if (!clipboardDenied) return undefined;
+    const forget = () => setClipboardDenied(false);
+    window.addEventListener('paste', forget);
+    return () => window.removeEventListener('paste', forget);
+  }, [clipboardDenied]);
+
   const handlePasteClipboard = async () => {
     try {
-      if (navigator.clipboard?.readText) {
-        const text = await navigator.clipboard.readText();
-        if (text) onPgnTextChange(text);
-      }
-    } catch (_) {
-      // Clipboard permissions denied
+      const text = await navigator.clipboard.readText();
+      setClipboardDenied(false);
+      if (text) onPgnTextChange(text);
+    } catch {
+      setClipboardDenied(true);
     }
   };
 
@@ -180,6 +190,7 @@ export default function PgnViewer({
               {t('pgn.load')}
             </button>
           </div>
+          {clipboardDenied && <div className="image-error">⚠️ {t('pgn.clipboardDenied')}</div>}
         </form>
       )}
 
