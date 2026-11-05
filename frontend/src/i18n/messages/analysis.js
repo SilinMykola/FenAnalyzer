@@ -65,7 +65,7 @@ export default {
   de: {
     'analysis.loading': 'Stockfish berechnet Varianten und taktische Bewertung...',
     'analysis.empty.title': 'Bereit für die Engine-Bewertung',
-    'analysis.empty.text': 'Ziehe auf dem Brett oder analysiere eine Stellung, um die Bewertung von Stockfish zu sehen.',
+    'analysis.empty.text': 'Ziehen Sie auf dem Brett oder analysieren Sie eine Stellung, um die Bewertung von Stockfish zu sehen.',
     'analysis.title': 'Bewertung & Taktik',
     'analysis.badge.checkmate': 'Schachmatt',
     'analysis.badge.stalemate': 'Patt',
