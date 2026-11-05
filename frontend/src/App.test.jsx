@@ -766,6 +766,84 @@ describe('App board editor tab', () => {
   });
 });
 
+describe('App board controls for a typed FEN', () => {
+  const BLACK_TO_MOVE = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+  const type = (value) =>
+    fireEvent.change(screen.getByLabelText('FEN Position or PGN'), { target: { value } });
+
+  it('says whose move it is in the typed position before it is analyzed', async () => {
+    await renderApp();
+    expect(screen.getByText(/White to move/)).toBeInTheDocument();
+
+    type(BLACK_TO_MOVE);
+
+    expect(screen.getByText(/Black to move/)).toBeInTheDocument();
+    expect(screen.queryByText(/White to move/)).not.toBeInTheDocument();
+  });
+
+  it('shows no side to move for a half-typed FEN', async () => {
+    await renderApp();
+
+    type('8/8/8');
+
+    expect(screen.queryByText(/White to move/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Black to move/)).not.toBeInTheDocument();
+  });
+
+  it('offers no best move of the previous position until the new one is analyzed', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    expect(screen.getByRole('button', { name: /Play Best Move/ })).toBeInTheDocument();
+
+    type(BLACK_TO_MOVE);
+
+    expect(screen.queryByRole('button', { name: /Play Best Move/ })).not.toBeInTheDocument();
+    expect(chessboardProps().customArrows).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: /Analyze with Stockfish/ }));
+
+    expect(await screen.findByRole('button', { name: /Play Best Move/ })).toBeInTheDocument();
+  });
+
+  it('leaves the analysis of the previous position out of the panel', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    type(BLACK_TO_MOVE);
+
+    expect(screen.queryByText('Even position (balanced game)')).not.toBeInTheDocument();
+    expect(document.querySelector('.line-item')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /Analyze with Stockfish/ }));
+
+    expect(await screen.findByText('Even position (balanced game)')).toBeInTheDocument();
+  });
+
+  it('does not show a slow analysis that lands after another position was typed', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    let finish;
+    vi.mocked(analyzeFen).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    await user.click(screen.getByRole('button', { name: /Analyze with Stockfish/ }));
+
+    type(BLACK_TO_MOVE);
+    await act(async () => finish(ANALYSIS));
+
+    expect(screen.queryByText('Even position (balanced game)')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Play Best Move/ })).not.toBeInTheDocument();
+  });
+
+  it('unlocks the board when a position is typed after a checkmate', async () => {
+    vi.mocked(analyzeFen).mockResolvedValue({ ...ANALYSIS, is_checkmate: true, lines: [] });
+    await renderApp();
+    expect(chessboardProps().arePiecesDraggable).toBe(false);
+
+    type(BLACK_TO_MOVE);
+
+    expect(chessboardProps().arePiecesDraggable).toBe(true);
+  });
+});
+
 describe('App engine line preview', () => {
   async function previewMove(user, san) {
     const line = document.querySelector('.line-item');
@@ -784,6 +862,15 @@ describe('App engine line preview', () => {
     // While previewing, the board is read-only and shows no best-move arrow.
     expect(chessboardProps().arePiecesDraggable).toBe(false);
     expect(chessboardProps().customArrows).toEqual([]);
+  });
+
+  it('says whose move it is in the previewed position', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+
+    await previewMove(user, 'e4');
+
+    expect(screen.getByText(/Black to move/)).toBeInTheDocument();
   });
 
   it('steps forward and back through the line', async () => {

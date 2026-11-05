@@ -105,6 +105,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 
 ### 🎮 Interactive Board (FEN Mode)
 - **Drag-and-drop or click** piece movement with client-side legal move validation (`chess.js`): click a piece of the side to move and its moves are marked, a dot on a free square and a ring around a piece it can take; click a marked square to play the move. Clicking another piece of that side selects it instead, clicking the piece again or any other square drops the selection, and a pawn clicked to its last rank asks which piece to take
+- **A typed FEN goes on the board before it is analyzed** — the side-to-move badge always comes from the position on the board, including a previewed engine line. The analysis panel, the best-move button and arrow, and the Gemini buttons show only an analysis of that position, and come back after **Analyze**
 - **Audio feedback** — synthesized move and capture sounds via Web Audio API (no external files)
 - **Pawn promotion** — a pawn reaching the last rank opens a dialog to choose a queen, rook, bishop or knight, and the chosen piece is played
 - **Best-move arrow** — visual arrow overlay highlighting the engine's top recommendation. The arrow and the engine lines always belong to the position on the board: when you move on before an analysis is done, its late answer is dropped instead of replacing the newer one

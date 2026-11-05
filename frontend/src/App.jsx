@@ -101,6 +101,10 @@ function AppContent() {
   const [depth, setDepth] = useState(20);
   const [multipv, setMultipv] = useState(3);
   const [analysis, setAnalysis] = useState(null);
+  // The position that analysis is of: a typed FEN is on the board before it
+  // is analyzed.
+  const [analyzedFen, setAnalyzedFen] = useState(null);
+  const boardAnalysis = analyzedFen === fen ? analysis : null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [backendOnline, setBackendOnline] = useState(null);
@@ -264,6 +268,7 @@ function AppContent() {
         const data = await analyzeFen(fenToAnalyze, targetDepth, targetMultipv, chess960Ref.current);
         if (!isLatest()) return;
         setAnalysis(data);
+        setAnalyzedFen(fenToAnalyze);
         setBackendOnline(true);
       } catch (err) {
         if (isLatest()) setError(err.message || t('app.error.analysis'));
@@ -433,7 +438,7 @@ function AppContent() {
 
   // Handler for "Play Best Move" button
   const handlePlayBestMove = () => {
-    const bestMove = analysis?.lines?.[0]?.move_uci;
+    const bestMove = boardAnalysis?.lines?.[0]?.move_uci;
     if (!bestMove || bestMove.length < 4) return;
 
     const from = bestMove.slice(0, 2);
@@ -540,21 +545,21 @@ function AppContent() {
 
   // Ask Grandmaster AI Commentary handler
   const handleAskGrandmaster = async () => {
-    if (!analysis || !analysis.lines || analysis.lines.length === 0) return;
+    if (!boardAnalysis || !boardAnalysis.lines || boardAnalysis.lines.length === 0) return;
     if (geminiWait > 0) return;
 
-    const topChoice = analysis.lines[0];
+    const topChoice = boardAnalysis.lines[0];
     setAiLoading(true);
     setAiError(null);
 
     try {
       const res = await getAiCommentary({
         fen,
-        turn: analysis.turn,
+        turn: boardAnalysis.turn,
         score: topChoice.score,
         best_move_san: topChoice.move_san,
         explanation: topChoice.explanation,
-        verbal_verdict: analysis.verbal_verdict,
+        verbal_verdict: boardAnalysis.verbal_verdict,
         custom_api_key: customApiKey,
         model: geminiModel,
         language,
@@ -576,24 +581,24 @@ function AppContent() {
   // Asks Gemini why Stockfish rates the position as it does, sending the
   // engine's top lines along as evidence.
   const handleExplainEvaluation = async () => {
-    if (!analysis || !analysis.lines || analysis.lines.length === 0) return;
+    if (!boardAnalysis || !boardAnalysis.lines || boardAnalysis.lines.length === 0) return;
     if (geminiWait > 0) return;
 
-    const topChoice = analysis.lines[0];
+    const topChoice = boardAnalysis.lines[0];
     setEvalExplanation({ status: 'loading' });
     try {
       const res = await getAiCommentary({
         fen,
-        turn: analysis.turn,
+        turn: boardAnalysis.turn,
         score: topChoice.score,
         best_move_san: topChoice.move_san,
         explanation: topChoice.explanation,
-        verbal_verdict: analysis.verbal_verdict,
+        verbal_verdict: boardAnalysis.verbal_verdict,
         custom_api_key: customApiKey,
         model: geminiModel,
         language,
         focus: 'evaluation',
-        lines: analysis.lines.map((line) => ({ score: line.score, pv_san: line.pv_san || [] })),
+        lines: boardAnalysis.lines.map((line) => ({ score: line.score, pv_san: line.pv_san || [] })),
       });
       pauseGeminiAfter(res);
       setEvalExplanation(
@@ -814,8 +819,11 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTab, pgnMoves, currentMoveIndex, moveLine]);
 
-  const bestMove = analysis?.lines?.[0]?.move_uci || null;
-  const isGameOver = analysis?.is_checkmate || analysis?.is_stalemate || false;
+  const bestMove = boardAnalysis?.lines?.[0]?.move_uci || null;
+  const isGameOver = boardAnalysis?.is_checkmate || boardAnalysis?.is_stalemate || false;
+  const boardFen = variationPreview ? variationPreview.previewFen : fen;
+  // A half-typed FEN does not say whose move it is yet.
+  const boardTurn = { w: 'white', b: 'black' }[boardFen.split(' ')[1]];
   // An illegal position read from an image is shown, but cannot be played on.
   const isIllegalImagePosition =
     imageRecognition.status === 'done' && !imageRecognition.isValid && imageRecognition.fen === fen;
@@ -1067,9 +1075,9 @@ function AppContent() {
                 )}
                 <MoveLine line={moveLine} onGoTo={handleGoToLineMove} />
                 <BoardView
-                  fen={variationPreview ? variationPreview.previewFen : fen}
+                  fen={boardFen}
                   bestMove={variationPreview ? null : bestMove}
-                  turn={analysis?.turn}
+                  turn={boardTurn}
                   orientation={orientation}
                   onFlip={() => setOrientation((prev) => (prev === 'white' ? 'black' : 'white'))}
                   onPieceDrop={handlePieceDrop}
@@ -1081,7 +1089,7 @@ function AppContent() {
 
               <div className="analysis-column">
                 <AnalysisPanel
-                  analysis={analysis}
+                  analysis={boardAnalysis}
                   loading={loading}
                   onAskGrandmaster={handleAskGrandmaster}
                   aiCommentary={aiCommentary}
