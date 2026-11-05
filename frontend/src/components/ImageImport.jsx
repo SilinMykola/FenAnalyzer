@@ -18,8 +18,10 @@ function withElements(text, elements) {
  * state of the recognition; App sends the image to the backend.
  *
  * recognition: { status: 'idle' | 'recognizing' | 'done' | 'calibrated' | 'error',
- *                error, fen, turnDetected, isValid, seenFromBlack, calibrating }
+ *                error, fen, turnDetected, turnChosen, isValid, seenFromBlack,
+ *                calibrating }
  * onRotate:    turns a result by 180 degrees, for a board read upside down
+ * onChooseTurn: sets the side to move of a result, 'w' or 'b'
  * waitSeconds: how long Gemini asked to wait before the next request; Try
  *              Again stays locked until it runs out.
  * modelPicker: props for a ModelPicker always shown in the box: another model
@@ -39,6 +41,7 @@ export default function ImageImport({
   onEditInEditor,
   onClear,
   onRotate,
+  onChooseTurn,
   waitSeconds = 0,
   modelPicker,
   pendingImage,
@@ -167,6 +170,35 @@ export default function ImageImport({
       {t('image.rotate')}
     </button>
   );
+  // Shown under a result: the image may not show whose move it is, or may
+  // have been misread; an illegal result may be legal for the other side.
+  const turn = recognition.fen?.split(' ')[1];
+  const turnSwitch = onChooseTurn && (
+    <div className="turn-switch" role="group" aria-label={t('image.turnQuestion')}>
+      <span>{t('image.turnQuestion')}</span>
+      <button
+        type="button"
+        className="preset-btn"
+        aria-pressed={turn === 'w'}
+        onClick={() => onChooseTurn('w')}
+      >
+        {t('image.white')}
+      </button>
+      <button
+        type="button"
+        className="preset-btn"
+        aria-pressed={turn === 'b'}
+        onClick={() => onChooseTurn('b')}
+      >
+        {t('image.black')}
+      </button>
+    </div>
+  );
+  const turnNote = recognition.turnChosen
+    ? t('image.turnChosen')
+    : recognition.turnDetected
+      ? t('image.turnShown')
+      : t('image.turnGuessed');
   const seenFromBlackNote = ` ${t('image.seenFromBlack')}`;
   const hasSomethingToClear = Boolean(previewUrl || localError || recognition.status !== 'idle');
   const calibrating = Boolean(localReader?.active && localReader.needsCalibration);
@@ -323,12 +355,13 @@ export default function ImageImport({
             <div className="image-result">
               <span>
                 {t('image.recognized')} <strong>{sideToMove}</strong>{' '}
-                {recognition.turnDetected ? t('image.turnShown') : t('image.turnGuessed')}
+                {turnNote}
                 {recognition.seenFromBlack && seenFromBlackNote}
               </span>
               <button type="button" className="preset-btn" onClick={onEditInEditor}>
                 {t('image.fixInEditor')}
               </button>
+              {turnSwitch}
               {rotateButton}
             </div>
           )}
@@ -342,6 +375,7 @@ export default function ImageImport({
               <button type="button" className="preset-btn" onClick={onEditInEditor}>
                 {t('image.fixInEditor')}
               </button>
+              {turnSwitch}
               {rotateButton}
             </div>
           )}

@@ -1690,6 +1690,81 @@ describe('App your moves since a loaded position', () => {
   });
 });
 
+describe('App choosing whose move it is in a read image', () => {
+  const READ = 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1';
+  const BLACK_TO_MOVE = 'r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1';
+
+  async function readImage(user, answer) {
+    vi.mocked(recognizeImage).mockResolvedValue({
+      success: true,
+      fen: READ,
+      turn_detected: false,
+      is_valid: true,
+      ...answer,
+    });
+    await user.upload(
+      screen.getByLabelText('Upload image file'),
+      new File(['png bytes'], 'board.png', { type: 'image/png' })
+    );
+    await screen.findByText(/Position recognized|not legal/);
+  }
+
+  it('gives the move to the chosen side and analyzes for it', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await readImage(user);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(READ));
+
+    await user.click(screen.getByRole('button', { name: 'Black' }));
+
+    expect(chessboardProps().position).toBe(BLACK_TO_MOVE);
+    expect(screen.getByLabelText('FEN Position or PGN')).toHaveValue(BLACK_TO_MOVE);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(BLACK_TO_MOVE));
+    expect(chessboardProps().boardOrientation).toBe('black');
+    expect(screen.getByText(/chosen by you/)).toBeInTheDocument();
+  });
+
+  it('lets moves on the board follow the chosen side', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await readImage(user);
+
+    await user.click(screen.getByRole('button', { name: 'Black' }));
+
+    let accepted;
+    act(() => {
+      accepted = chessboardProps().onPieceDrop('a8', 'a7', 'bR');
+    });
+    expect(accepted).toBe(true);
+  });
+
+  it('does not analyze again when the side already to move is chosen', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await readImage(user);
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(READ));
+    const callsBefore = analyzeFen.mock.calls.length;
+
+    await user.click(screen.getByRole('button', { name: 'White' }));
+
+    expect(analyzeFen).toHaveBeenCalledTimes(callsBefore);
+    expect(screen.queryByText(/chosen by you/)).not.toBeInTheDocument();
+  });
+
+  it('turns an illegal result legal when the other side is chosen', async () => {
+    const user = userEvent.setup();
+    // White to move with Black's king in check cannot happen.
+    const CHECK = '4k3/8/8/8/8/8/8/4R1K1 w - - 0 1';
+    await renderApp();
+    await readImage(user, { fen: CHECK, turn_detected: true, is_valid: false });
+
+    await user.click(screen.getByRole('button', { name: 'Black' }));
+
+    expect(await screen.findByText(/Position recognized/)).toBeInTheDocument();
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(CHECK.replace(' w ', ' b ')));
+  });
+});
+
 describe('App position read upside down', () => {
   // The user's position, and the same board as a weak model returned it,
   // copied from a picture seen from Black's side without turning it.

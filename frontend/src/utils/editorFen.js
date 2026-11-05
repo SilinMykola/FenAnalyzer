@@ -156,3 +156,14 @@ export function rotateFen(fen) {
   const allRights = Object.fromEntries(CASTLING_FLAGS.map((flag) => [flag, true]));
   return buildFen(turned, parseFenMeta(fen).turn, allRights);
 }
+
+/**
+ * The same position with the given side ('w' or 'b') to move. An en passant
+ * square belongs to the side that was to move, so it does not carry over.
+ */
+export function withSideToMove(fen, side) {
+  const fields = fen.split(' ');
+  fields[1] = side;
+  fields[3] = '-';
+  return fields.join(' ');
+}

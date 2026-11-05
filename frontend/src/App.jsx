@@ -25,7 +25,7 @@ import { readImageAsBase64 } from './utils/imageFile';
 import { classifyPastedText } from './utils/pastedText';
 import { isChess960Pgn, withStandardCastling, withStandardCastlingPgn } from './utils/pgn';
 import { addMove, goTo, shownFen, startLine } from './utils/moveLine';
-import { getPositionError, rotateFen } from './utils/editorFen';
+import { getPositionError, rotateFen, withSideToMove } from './utils/editorFen';
 import { playMoveSound } from './utils/sound';
 import useTheme from './hooks/useTheme';
 import useGeminiCooldown from './hooks/useGeminiCooldown';
@@ -643,6 +643,19 @@ function AppContent() {
     });
   };
 
+  // An image does not always show whose move it is, so the user can say.
+  const handleChooseRecognizedTurn = (side) => {
+    if (imageRecognition.status !== 'done') return;
+    const fen = withSideToMove(imageRecognition.fen, side);
+    if (fen === imageRecognition.fen) return;
+    showRecognizedPosition({
+      ...imageRecognition,
+      fen,
+      isValid: getPositionError(fen) === null,
+      turnChosen: true,
+    });
+  };
+
   // Teaches the local reader the board and pieces from a screenshot of the
   // starting position.
   const calibrateFrom = async (file) => {
@@ -934,6 +947,7 @@ function AppContent() {
                     onEditInEditor={() => setActiveTab('editor')}
                     onClear={() => setImageRecognition({ status: 'idle' })}
                     onRotate={handleRotateRecognized}
+                    onChooseTurn={handleChooseRecognizedTurn}
                     waitSeconds={readsLocally ? 0 : geminiWait}
                     modelPicker={imageModelPicker}
                     pendingImage={pendingImage}

@@ -521,6 +521,61 @@ describe('ImageImport reading again', () => {
   });
 });
 
+describe('ImageImport choosing whose move it is', () => {
+  const RESULT = { status: 'done', fen: '4k3/8/8/8/8/8/8/4K3 w - - 0 1', isValid: true };
+  const white = () => screen.getByRole('button', { name: 'White' });
+  const black = () => screen.getByRole('button', { name: 'Black' });
+
+  function renderResult(recognition) {
+    const onChooseTurn = vi.fn();
+    render(
+      <ImageImport
+        recognition={recognition}
+        onImage={vi.fn()}
+        onEditInEditor={vi.fn()}
+        onClear={vi.fn()}
+        onChooseTurn={onChooseTurn}
+      />
+    );
+    return onChooseTurn;
+  }
+
+  it('marks the current side and reports the chosen one', async () => {
+    const user = userEvent.setup();
+    const onChooseTurn = renderResult(RESULT);
+    expect(white()).toHaveAttribute('aria-pressed', 'true');
+    expect(black()).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(black());
+
+    expect(onChooseTurn).toHaveBeenCalledWith('b');
+  });
+
+  it('is offered for an illegal result too, which the other side may make legal', () => {
+    renderResult({ ...RESULT, isValid: false });
+
+    expect(black()).toBeInTheDocument();
+  });
+
+  it('says where the side came from: the image, a guess, or the user', () => {
+    const { unmount } = render(
+      <ImageImport recognition={{ ...RESULT, turnDetected: true }} onImage={vi.fn()} onClear={vi.fn()} />
+    );
+    expect(screen.getByText(/shown in the image/)).toBeInTheDocument();
+    unmount();
+
+    renderResult(RESULT);
+    expect(screen.getByText(/a guess/)).toBeInTheDocument();
+  });
+
+  it('says the side was chosen by the user, even if the image showed another', () => {
+    renderResult({ ...RESULT, turnDetected: true, turnChosen: true });
+
+    expect(screen.getByText(/chosen by you/)).toBeInTheDocument();
+    expect(screen.queryByText(/shown in the image/)).not.toBeInTheDocument();
+  });
+});
+
 describe('ImageImport turning a result upside down', () => {
   const RESULT = { status: 'done', fen: '4k3/8/8/8/8/8/8/4K3 w - - 0 1', isValid: true };
   const turnButton = () => screen.queryByRole('button', { name: /Upside down\? Turn 180°/ });

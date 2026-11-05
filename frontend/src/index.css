@@ -1991,6 +1991,18 @@ body {
   color: var(--text-soft);
 }
 
+.turn-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.turn-switch .preset-btn[aria-pressed='true'] {
+  background: var(--surface-hover);
+  border-color: var(--accent-color);
+  color: var(--text-strong);
+}
+
 .image-result.editor-warn-box {
   margin-top: 0;
 }

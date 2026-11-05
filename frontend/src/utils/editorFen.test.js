@@ -9,6 +9,7 @@ import {
   parseFenMeta,
   positionToBoardFen,
   rotateFen,
+  withSideToMove,
 } from './editorFen';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -241,6 +242,20 @@ describe('rotateFen', () => {
     // bottom. Turned, both stand on their home squares again.
     expect(rotateFen('R2K3R/8/8/8/8/8/8/r2k3r w - - 0 1')).toBe(
       'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1'
+    );
+  });
+});
+
+describe('withSideToMove', () => {
+  it('changes the side and keeps the rest of the position', () => {
+    expect(withSideToMove('r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 3 7', 'b')).toBe(
+      'r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 3 7'
+    );
+  });
+
+  it('drops an en passant square, which belonged to the side that was to move', () => {
+    expect(withSideToMove('4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 2', 'b')).toBe(
+      '4k3/8/8/3pP3/8/8/8/4K3 b - - 0 2'
     );
   });
 });

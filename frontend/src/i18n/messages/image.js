@@ -35,6 +35,10 @@ export default {
     'image.blackToMove': 'Black to move',
     'image.turnShown': '(shown in the image).',
     'image.turnGuessed': '— a guess, the image does not show it.',
+    'image.turnChosen': '(chosen by you).',
+    'image.turnQuestion': 'Whose move:',
+    'image.white': 'White',
+    'image.black': 'Black',
     'image.seenFromBlack': "The picture shows the board from Black's side; it was turned to White's.",
     'image.illegal':
       '⚠️ The recognized position is not legal, probably a misread piece. Fix it in the Board Editor before analysis.',
@@ -85,6 +89,10 @@ export default {
     'image.blackToMove': 'Schwarz am Zug',
     'image.turnShown': '(im Bild zu sehen).',
     'image.turnGuessed': '— nur geschätzt, das Bild zeigt es nicht.',
+    'image.turnChosen': '(von Ihnen gewählt).',
+    'image.turnQuestion': 'Wer ist am Zug:',
+    'image.white': 'Weiß',
+    'image.black': 'Schwarz',
     'image.seenFromBlack': 'Das Bild zeigt das Brett aus Sicht von Schwarz; es wurde auf die Sicht von Weiß gedreht.',
     'image.illegal':
       '⚠️ Die erkannte Stellung ist nicht regelgerecht, wahrscheinlich wurde eine Figur falsch gelesen. Korrigieren Sie sie vor der Analyse im Brett-Editor.',
@@ -136,6 +144,10 @@ export default {
     'image.blackToMove': 'Ход чёрных',
     'image.turnShown': '(видно на картинке).',
     'image.turnGuessed': '— предположение, на картинке этого не видно.',
+    'image.turnChosen': '(выбрано вами).',
+    'image.turnQuestion': 'Чей ход:',
+    'image.white': 'Белые',
+    'image.black': 'Чёрные',
     'image.seenFromBlack': 'На картинке доска со стороны чёрных; её развернули белыми вниз.',
     'image.illegal':
       '⚠️ Распознанная позиция невозможна по правилам — вероятно, какая-то фигура прочитана неверно. Исправьте её в редакторе доски перед анализом.',
@@ -186,6 +198,10 @@ export default {
     'image.blackToMove': 'Хід чорних',
     'image.turnShown': '(видно на зображенні).',
     'image.turnGuessed': '— припущення, на зображенні цього не видно.',
+    'image.turnChosen': '(вибрано вами).',
+    'image.turnQuestion': 'Чий хід:',
+    'image.white': 'Білі',
+    'image.black': 'Чорні',
     'image.seenFromBlack': 'На зображенні дошка з боку чорних; її розвернуто білими донизу.',
     'image.illegal':
       '⚠️ Розпізнана позиція неможлива за правилами — мабуть, якусь фігуру прочитано неправильно. Виправте її в редакторі дошки перед аналізом.',
