@@ -424,6 +424,13 @@ function AppContent() {
     }
   };
 
+  // The moves of the piece on a square, for the board to mark. None while the
+  // board shows something else than the game, such as a half-typed FEN.
+  const getLegalMoves = (square) =>
+    gameRef.current.fen().split(' ')[0] === fen.split(' ')[0]
+      ? gameRef.current.moves({ square, verbose: true })
+      : [];
+
   // Handler for "Play Best Move" button
   const handlePlayBestMove = () => {
     const bestMove = analysis?.lines?.[0]?.move_uci;
@@ -1066,6 +1073,7 @@ function AppContent() {
                   orientation={orientation}
                   onFlip={() => setOrientation((prev) => (prev === 'white' ? 'black' : 'white'))}
                   onPieceDrop={handlePieceDrop}
+                  getLegalMoves={getLegalMoves}
                   onPlayBestMove={handlePlayBestMove}
                   isGameOver={isGameOver || Boolean(variationPreview) || isIllegalImagePosition}
                 />

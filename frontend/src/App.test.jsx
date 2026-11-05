@@ -242,6 +242,51 @@ describe('App playing moves', () => {
     await waitFor(() => expect(lastAnalyzedFen()).toBe(AFTER_E4));
   });
 
+  it('plays a move by clicking a piece and then a marked square', async () => {
+    await renderApp();
+
+    act(() => chessboardProps().onSquareClick('g1', 'wN'));
+    expect(Object.keys(chessboardProps().customSquareStyles).sort()).toEqual(['f3', 'g1', 'h3']);
+
+    act(() => chessboardProps().onSquareClick('f3'));
+
+    const AFTER_NF3 = 'rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 1 1';
+    expect(chessboardProps().position).toBe(AFTER_NF3);
+    expect(chessboardProps().customSquareStyles).toEqual({});
+    await waitFor(() => expect(lastAnalyzedFen()).toBe(AFTER_NF3));
+  });
+
+  it('marks no moves for the side not to move', async () => {
+    await renderApp();
+
+    act(() => chessboardProps().onSquareClick('e7', 'bP'));
+
+    expect(chessboardProps().customSquareStyles).toEqual({});
+  });
+
+  it('promotes by clicks to the chosen piece', async () => {
+    const BEFORE = '4k3/P7/8/8/8/8/8/4K3 w - - 0 1';
+    await renderApp();
+    fireEvent.change(screen.getByLabelText('FEN Position or PGN'), { target: { value: BEFORE } });
+
+    act(() => chessboardProps().onSquareClick('a7', 'wP'));
+    act(() => chessboardProps().onSquareClick('a8'));
+    act(() => {
+      chessboardProps().onPromotionPieceSelect('wN');
+    });
+
+    expect(chessboardProps().position).toBe('N3k3/8/8/8/8/8/8/4K3 b - - 0 1');
+  });
+
+  it('marks no moves while the board shows a half-typed FEN', async () => {
+    await renderApp();
+    fireEvent.change(screen.getByLabelText('FEN Position or PGN'), { target: { value: '8/8/8' } });
+
+    act(() => chessboardProps().onSquareClick('g1', 'wN'));
+
+    expect(chessboardProps().customSquareStyles).toEqual({});
+  });
+
   it('rejects an illegal dragged move', async () => {
     await renderApp();
     const callsBefore = analyzeFen.mock.calls.length;

@@ -31,6 +31,131 @@ function renderBoard(props = {}) {
   return { ...utils, onPieceDrop, onPlayBestMove };
 }
 
+describe('BoardView moving by clicks', () => {
+  const E2_MOVES = [{ to: 'e3' }, { to: 'e4' }, { to: 'd3', captured: 'p' }];
+  const legalMoves = (square) => (square === 'e2' ? E2_MOVES : square === 'g1' ? [{ to: 'f3' }] : []);
+  const click = (square, piece) => act(() => chessboardProps().onSquareClick(square, piece));
+  const styles = () => chessboardProps().customSquareStyles;
+
+  it('marks the moves of a clicked piece: dots, and a ring around what it takes', () => {
+    renderBoard({ getLegalMoves: legalMoves });
+
+    click('e2', 'wP');
+
+    expect(styles().e2.backgroundColor).toBeTruthy();
+    expect(styles().e3.background).toMatch(/rgba\(0, 0, 0, 0.28\) 22%/);
+    expect(styles().e4.background).toBe(styles().e3.background);
+    expect(styles().d3.background).toMatch(/transparent 58%/);
+    expect(Object.keys(styles())).toHaveLength(4);
+  });
+
+  it('plays the move when a marked square is clicked', () => {
+    const { onPieceDrop } = renderBoard({ getLegalMoves: legalMoves });
+
+    click('e2', 'wP');
+    click('e4');
+
+    expect(onPieceDrop).toHaveBeenCalledWith('e2', 'e4', 'wP');
+    expect(styles()).toEqual({});
+  });
+
+  it('passes on the moving piece, not the one it takes', () => {
+    const { onPieceDrop } = renderBoard({ getLegalMoves: legalMoves });
+
+    click('e2', 'wP');
+    click('d3', 'bP');
+
+    expect(onPieceDrop).toHaveBeenCalledWith('e2', 'd3', 'wP');
+  });
+
+  it('marks nothing and plays nothing for a piece without moves', () => {
+    const { onPieceDrop } = renderBoard({ getLegalMoves: legalMoves });
+
+    click('a7', 'bP');
+    click('a6');
+
+    expect(styles()).toEqual({});
+    expect(onPieceDrop).not.toHaveBeenCalled();
+  });
+
+  it('moves the selection to another piece, and drops it on a second click', () => {
+    const { onPieceDrop } = renderBoard({ getLegalMoves: legalMoves });
+
+    click('e2', 'wP');
+    click('g1', 'wN');
+    expect(Object.keys(styles()).sort()).toEqual(['f3', 'g1']);
+
+    click('g1', 'wN');
+    expect(styles()).toEqual({});
+    expect(onPieceDrop).not.toHaveBeenCalled();
+  });
+
+  it('drops the selection on a click elsewhere, when a drag begins and when the position changes', () => {
+    const { rerender } = renderBoard({ getLegalMoves: legalMoves });
+
+    click('e2', 'wP');
+    click('a5');
+    expect(styles()).toEqual({});
+
+    click('e2', 'wP');
+    act(() => chessboardProps().onPieceDragBegin('wP', 'e2'));
+    expect(styles()).toEqual({});
+
+    click('e2', 'wP');
+    rerender(<BoardView fen={AFTER_E4} turn="black" onPieceDrop={vi.fn()} getLegalMoves={legalMoves} />);
+    expect(styles()).toEqual({});
+  });
+
+  it('selects nothing when the board is locked', () => {
+    renderBoard({ getLegalMoves: legalMoves, isGameOver: true });
+
+    click('e2', 'wP');
+
+    expect(styles()).toEqual({});
+  });
+
+  describe('promoting', () => {
+    const toPromote = () => [{ to: 'e8', promotion: 'q' }, { to: 'e8', promotion: 'n' }];
+
+    it('asks for the piece, then plays the move with it', () => {
+      const { onPieceDrop } = renderBoard({ getLegalMoves: toPromote });
+
+      click('e7', 'wP');
+      click('e8');
+      expect(chessboardProps().showPromotionDialog).toBe(true);
+      expect(chessboardProps().promotionToSquare).toBe('e8');
+      expect(onPieceDrop).not.toHaveBeenCalled();
+
+      let answer;
+      act(() => {
+        answer = chessboardProps().onPromotionPieceSelect('wN');
+      });
+
+      expect(onPieceDrop).toHaveBeenCalledWith('e7', 'e8', 'wN');
+      // The board must not place the piece on its own as well.
+      expect(answer).toBe(false);
+      expect(chessboardProps().showPromotionDialog).toBe(false);
+    });
+
+    it('plays nothing when the dialog is closed', () => {
+      const { onPieceDrop } = renderBoard({ getLegalMoves: toPromote });
+
+      click('e7', 'wP');
+      click('e8');
+      act(() => chessboardProps().onPromotionPieceSelect());
+
+      expect(onPieceDrop).not.toHaveBeenCalled();
+      expect(chessboardProps().showPromotionDialog).toBe(false);
+    });
+
+    it('leaves a promotion by drag to the board', () => {
+      renderBoard();
+
+      expect(chessboardProps().onPromotionPieceSelect('wN', 'e7', 'e8')).toBe(true);
+    });
+  });
+});
+
 describe('BoardView', () => {
   it('shows the given position', () => {
     renderBoard();

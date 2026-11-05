@@ -104,7 +104,7 @@ interactively, build custom positions, and get natural language grandmaster coac
 - Built on CSS custom properties: every colour in `index.css` is a theme token, redefined under `[data-theme='light']`
 
 ### 🎮 Interactive Board (FEN Mode)
-- **Drag-and-drop** piece movement with client-side legal move validation (`chess.js`)
+- **Drag-and-drop or click** piece movement with client-side legal move validation (`chess.js`): click a piece of the side to move and its moves are marked, a dot on a free square and a ring around a piece it can take; click a marked square to play the move. Clicking another piece of that side selects it instead, clicking the piece again or any other square drops the selection, and a pawn clicked to its last rank asks which piece to take
 - **Audio feedback** — synthesized move and capture sounds via Web Audio API (no external files)
 - **Pawn promotion** — a pawn reaching the last rank opens a dialog to choose a queen, rook, bishop or knight, and the chosen piece is played
 - **Best-move arrow** — visual arrow overlay highlighting the engine's top recommendation. The arrow and the engine lines always belong to the position on the board: when you move on before an analysis is done, its late answer is dropped instead of replacing the newer one
@@ -426,7 +426,7 @@ FenAnalyzer/
 │       ├── api/
 │       │   └── chessApi.js         # API client (fetch wrapper for all endpoints)
 │       ├── components/
-│       │   ├── BoardView.jsx       # Interactive board · drag-drop · best-move arrow
+│       │   ├── BoardView.jsx       # Interactive board · drag-drop · click to move · best-move arrow
 │       │   ├── BoardEditor.jsx     # Custom position builder · piece palette · FEN export
 │       │   ├── FenInput.jsx        # FEN input · presets
 │       │   ├── AnalysisSettings.jsx # Depth & MultiPV sliders with Apply, on every tab
